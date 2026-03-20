@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify OTP</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <!-- OTP Verification Form (Initially Visible) -->
+            <div id="otp-form">
+                <div class="login-header">
+                    <h2>Verify OTP</h2>
+                    <p>Enter the 6-digit code sent to your email</p>
+                </div>
+
+                <form id="otpVerificationForm" method="POST" action="{% url 'account:verify_otp' %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <div class="input-wrapper">
+                            <input type="text" id="otp" name="user_otp"  maxlength="6" placeholder="Enter OTP" required>
+                            
+                        {% if error %}
+                        <div style="color: red;">{{ error }}</div>
+                    {% endif %}
+
+                    <div class="form-options">
+                        <div class="timer-wrapper">
+                            <span id="timer" class="timer-text">Resend OTP in 01:00</span>
+                        </div>
+                        <a href="#" id="resend-link" class="forgot-password disabled">Resend OTP</a>
+                    </div>
+
+                    <button type="submit" class="login-btn" id="verify-btn">
+                        <span class="btn-text">Verify OTP</span>
+                        <div class="btn-loader"></div>
+                    </button>
+                </form>
+
+                <div class="signup-link">
+                    <p>Remember your password? <a href="{% url 'account:login' %}" id="back-to-login">Back to Login</a></p>
+                </div>
+            </div>
+
+            <!-- Success Message (Initially Hidden) -->
+            <div id="success-message" class="success-message">
+                <div class="success-icon">
+                    <i class="fas fa-check"></i>
+                </div>
+                <h3>Verification Successful!</h3>
+                <p>Your email has been verified successfully. Redirecting to dashboard...</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

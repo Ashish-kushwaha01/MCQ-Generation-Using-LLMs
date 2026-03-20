@@ -1,0 +1,129 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>General Instructions</title>
+    <link rel="stylesheet" href="{% static 'css/general_info.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    
+
+        <!-- Main content area -->
+        <main class="main-content">
+            <div class="instructions-container">
+                <h1 class="page-title">General Instructions:</h1>
+                
+                <div class="instructions-section">
+                    <div class="instruction-item">
+                        <span class="instruction-number">1.</span>
+                        <div class="instruction-text">
+                            The clock will be set at the server. The countdown timer at the top right corner of screen will display the remaining time available for you to complete the examination. When the timer reaches zero, the examination will end by itself. You need not terminate the examination or submit your paper.
+                        </div>
+                    </div>
+                    
+                    <div class="instruction-item">
+                        <span class="instruction-number">2.</span>
+                        <div class="instruction-text">
+                            The Question Palette displayed on the right side of screen will show the status of each question using one of the following symbols:
+                            <ul class="symbols-list">
+                                <li><span class="symbol-box not-visited"></span> You have not visited the question yet.</li>
+                                <li><span class="symbol-box answered"></span> You have answered the question.</li>
+                                <li><span class="symbol-box not-answered"></span> You have NOT answered the question.</li>
+                                <li><span class="symbol-box marked-review"></span> You have NOT answered the question, but have marked the question for review.</li>
+                                <li><span class="symbol-box answered-marked"></span> You have answered the question, but marked it for review.</li>
+                            </ul>
+                            <p>The Mark For Review status for a question simply indicates that you would like to look at that question again. If a question is answered, but marked for review, then the answer will be considered for evaluation unless the status is modified by the candidate.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <h2 class="section-title">Navigating to a Question:</h2>
+                
+                <div class="instructions-section">
+                    <div class="instruction-item">
+                        <span class="instruction-number">3.</span>
+                        <div class="instruction-text">
+                            To answer a question, do the following:
+                            <ol class="steps-list">
+                                <li>Click on the question number in the Question Palette at the right of your screen to go to that numbered question directly. Note that using this option does NOT save your answer to the current question.</li>
+                                <li>Click on Save & Next to save your answer for the current question and then go to the next question.</li>
+                                <li>Click on Mark for Review & Next to save your answer for the current question and also mark it for review, and then go to the next question.</li>
+                            </ol>
+                            <p>Note that your answer for the current question will not be saved, if you navigate to another question directly by clicking on a question number without saving the answer to the previous question.</p>
+                            <p>You can view all the questions by clicking on the <strong>Question Paper</strong> button. This feature is provided, so that if you want you can just see the entire question paper at a glance.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <h2 class="section-title">Answering a Question:</h2>
+                
+                <div class="instructions-section">
+                    <div class="instruction-item">
+                        <span class="instruction-number">4.</span>
+                        <div class="instruction-text">
+                            <p>Procedure for answering a multiple choice (MCQ) type question:</p>
+                            <ol class="steps-list">
+                                <li>Choose one answer from the 4 options (A, B, C, D) given below the question, click on the bubble placed before the chosen option.</li>
+                                <li>To deselect your chosen answer, click on the bubble of the chosen option again or click on the Clear Response button.</li>
+                                <li>To change your chosen answer, click on the bubble of another option.</li>
+                                <li>To save your answer, you MUST click on the Save & Next button.</li>
+                            </ol>
+                        </div>
+                    </div>
+                    
+                    <div class="instruction-item">
+                        <span class="instruction-number">5.</span>
+                        <div class="instruction-text">
+                            <p>Procedure for answering a numerical answer type question:</p>
+                            <ol class="steps-list">
+                                <li>Enter a number as your answer, use the virtual numerical keypad.</li>
+                                <li>A fraction (e.g., -0.3 or -3) can be entered as an answer with or without "0" before the decimal point. As many as four decimal points, e.g., 12.5435 or 0.003 or -932.6711 or 12.82 can be entered.</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+                
+                <div class="palette-legend">
+                    <div class="legend-title">Legend:</div>
+                    <div class="legend-item">
+                        <span class="legend-symbol not-visited"></span> Not Visited
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol answered"></span> Answered
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol not-answered"></span> Not Answered
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol marked-review"></span> Marked for Review
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-symbol answered-marked"></span> Answered & Marked for Review
+                    </div>
+                </div>
+            </aside>
+        </main>
+        
+        <!-- Footer with navigation buttons -->
+        <footer class="footer">
+            <div class="buttons-container">
+                <a href="{% url 'test_all:test_page' %}" class="btn tests-btn">
+                <i class="fas fa-arrow-left"></i> Go to Tests
+                </a>
+                
+                        <a href="{% url 'test_all:start_test' slug=pdf.test_slug  %}" class="btn save-next-btn">
+                            Next <i class="fas fa-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+
+</body>
+</html>

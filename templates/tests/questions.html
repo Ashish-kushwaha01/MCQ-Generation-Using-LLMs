@@ -1,0 +1,168 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Online Test</title>
+
+    <!-- CSS -->
+    <link rel="stylesheet" href="{% static 'css/question_page.css' %}">
+</head>
+<body>
+
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <h2>{{ test.test_name }}</h2>
+        <p id="counter">Question 1</p>
+    </div>
+
+    <!-- Question -->
+    <div class="question-box" style="margin-bottom: 20px;">
+        <h3 id="question-text">Loading...</h3>
+    </div>
+
+    <!-- Options -->
+    <div class="options" id="options-box">
+        <!-- options loaded via AJAX -->
+    </div>
+
+    <!-- Buttons -->
+    <div class="buttons">
+    <button id="skipBtn" class="btn skip">Skip</button>
+    <button id="prevBtn" class="btn prev">Previous</button>
+    <button id="nextBtn" class="btn next">Save & Next</button>
+    <button id="submitBtn" class="btn submit">Submit Test</button>
+    </div>
+
+</div>
+
+
+<script>
+    // Django-safe URLs 
+    const QUESTION_URL = "{% url 'test_all:ajax_question' slug=test.test_slug attempt_id=attempt_id %}";
+    const SAVE_URL = "{% url 'test_all:ajax_save' slug=test.test_slug attempt_id=attempt_id %}";
+
+    const TOTAL_QUESTIONS = {{ test.questions.count|default:0 }};
+
+    let qNo = 1;
+
+    function updateButtons(){
+        document.getElementById('prevBtn').style.display = qNo > 1 ? 'block' : 'none';
+        document.getElementById('nextBtn').style.display = qNo < TOTAL_QUESTIONS ? 'block' : 'none';
+        document.getElementById('submitBtn').style.display = qNo === TOTAL_QUESTIONS ? 'block' : 'none';
+    }
+
+    // Load question from Django
+    function loadQuestion() {
+        fetch(`${QUESTION_URL}?q_no=${qNo}`)
+            .then(response => response.json())
+            .then(data => {
+
+                if (data.completed) {
+                    loadResult();
+                    return;
+                }
+
+                document.getElementById("counter").innerText =
+                    `Question ${data.q_no} of ${data.total}`;
+
+                document.getElementById("question-text").innerText =
+                    data.question;
+
+                let html = "";
+
+                for (let key in data.options) {
+                    const checked = data.selected === key ? "checked" : "";
+                    html += `
+                        <label class="option">
+                            <input type="radio" name="answer" value="${key}" ${checked}>
+                            ${key}. ${data.options[key]}
+                        </label>
+                    `;
+                }
+
+                document.getElementById("options-box").innerHTML = html;
+                updateButtons();
+            });
+    }
+
+    // Save answer and go next
+    document.getElementById("nextBtn").addEventListener("click", function () {
+        const selected = document.querySelector('input[name="answer"]:checked');
+
+        if (!selected) {
+            alert("Please select an answer before proceeding.");
+            return;
+        }
+
+        const answer = selected.value;
+
+        fetch(SAVE_URL, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: new URLSearchParams({
+                q_no: qNo,
+                answer: answer
+            })
+        }).then(() => {
+            qNo++;
+            loadQuestion();
+        });
+    });
+
+    // Save answer and go previous
+    document.getElementById("prevBtn").addEventListener("click", function () {
+        qNo--;
+        loadQuestion();
+    });
+
+    // Skip current question
+    document.getElementById("skipBtn").addEventListener("click", function () {
+        qNo++;
+        loadQuestion();
+    });
+
+    // Submit test
+    document.getElementById("submitBtn").addEventListener("click", function () {
+        const selected = document.querySelector('input[name="answer"]:checked');
+
+        if (!selected) {
+            alert("Please select an answer before proceeding.");
+            return;
+        }
+         const answer = selected.value; // <-- Add this line
+
+        fetch(SAVE_URL, {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: new URLSearchParams({
+                q_no: qNo,
+                answer: answer
+            })
+        }).then(() => {
+            loadResult();
+        });
+    });
+
+    // function for submit when click on submit button or when test is completed
+    document.addEventListener("testCompleted", function () {
+        loadResult();
+    });
+
+    // Load result
+    function loadResult() {
+        window.location.href='{% url "test_all:result" slug=test.test_slug attempt_id=attempt_id   %}';
+    }
+
+    // Initial load
+    loadQuestion();
+</script>
+
+</body>
+</html>

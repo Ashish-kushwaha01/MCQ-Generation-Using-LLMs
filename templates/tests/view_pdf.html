@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>View PDF</title>
+</head>
+<body>
+
+<h2>{{ pdf.title }}</h2>
+
+<!-- DEBUG: check URL -->
+<p>PDF URL: {{ pdf.pdf.url }}</p>
+
+<a href="{{ pdf.pdf.url }}" target="_blank">
+    Open PDF
+</a>
+
+</body>
+</html>

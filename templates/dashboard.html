@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}EduLearn - Dashboard{% endblock %}
+{% block css %}
+<link rel = 'stylesheet' href="{% static 'css/layout.css' %}">
+    <link rel='stylesheet' href="{% static 'css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+
+    Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text animate__animated animate__fadeInUp">
+                    <h1 class="hero-title">Learn Without <span class="highlight">Limits</span></h1>
+                    <p class="hero-description">
+                        Access thousands of courses in technology, business, creative arts, and more. 
+                        Learn from industry experts and join a global community of learners.
+                    </p>
+                    <div class="hero-actions">
+                        {% comment %} <button class="btn btn-primary btn-large">Start Learning Free</button> {% endcomment %}
+                        {% if not username %}   
+                        <a href="{% url 'account:login' %}" class="btn btn-primary btn-large">Get Started</a>
+                        {% endif %}
+
+                        <button class="btn btn-outline btn-large">
+                            <i class="fas fa-play-circle"></i> Watch Demo
+                        </button>
+                    </div>
+                    <div class="hero-stats">
+                        <div class="stat">
+                            <h3>50K+</h3>
+                            <p>Active Students</p>
+                        </div>
+                        <div class="stat">
+                            <h3>2,500+</h3>
+                            <p>Courses</p>
+                        </div>
+                        <div class="stat">
+                            <h3>300+</h3>
+                            <p>Expert Instructors</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="hero-image animate__animated animate__fadeIn">
+                    <div class="floating-card card-1">
+                        <i class="fas fa-laptop-code"></i>
+                        <h4>Coding Bootcamp</h4>
+                        <p>Full-Stack Development</p>
+                    </div>
+                    <div class="floating-card card-2">
+                        <i class="fas fa-chart-line"></i>
+                        <h4>Data Science</h4>
+                        <p>Machine Learning & AI</p>
+                    </div>
+                    <div class="floating-card card-3">
+                        <i class="fas fa-palette"></i>
+                        <h4>UI/UX Design</h4>
+                        <p>Design Principles</p>
+                    </div>
+                    <div class="hero-visual">
+                        <div class="visual-circle"></div>
+                        <div class="visual-circle"></div>
+                        <div class="visual-circle"></div>
+                        <img src="https://images.unsplash.com/photo-1536148935331-408321065b18?ixlib=rb-1.2.1&auto=format&fit=crop&w=600&q=80" alt="Students learning" class="hero-img">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="features">
+        <div class="container">
+            <div class="section-header">
+                <h2 class="section-title">Why Choose <span class="highlight">EduLearn</span></h2>
+                <p class="section-description">We provide the best learning experience with cutting-edge technology and proven methodologies.</p>
+            </div>
+            
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-rocket"></i>
+                    </div>
+                    <h3>Learn at Your Pace</h3>
+                    <p>Access courses 24/7 with lifetime availability. Learn quickly or take your time - it's up to you.</p>
+                    <a href="#" class="feature-link">Learn More <i class="fas fa-arrow-right"></i></a>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-certificate"></i>
+                    </div>
+                    <h3>Certification</h3>
+                    <p>Earn recognized certificates to showcase your skills and advance your career.</p>
+                    <a href="#" class="feature-link">View Certificates <i class="fas fa-arrow-right"></i></a>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h3>Community Learning</h3>
+                    <p>Join study groups, participate in discussions, and collaborate with peers worldwide.</p>
+                    <a href="#" class="feature-link">Join Community <i class="fas fa-arrow-right"></i></a>
+                </div>
+                
+                <div class="feature-card">
+                    <div class="feature-icon">
+                        <i class="fas fa-chalkboard-teacher"></i>
+                    </div>
+                    <h3>Expert Instructors</h3>
+                    <p>Learn from industry leaders and experienced educators passionate about teaching.</p>
+                    <a href="#" class="feature-link">Meet Instructors <i class="fas fa-arrow-right"></i></a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    {% endblock %}

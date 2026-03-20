@@ -1,0 +1,221 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Results</title>
+    <link rel="stylesheet" href="{% static 'css/test_result.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-top">
+                <h1><i class="fas fa-chart-line"></i> Test Result</h1>
+                <div class="test-info">
+                    <div class="info-item">
+                        <i class="far fa-calendar-alt"></i>
+                        <span>Attempted On: <strong>{{ today }}</strong></span>
+                    </div>
+            
+                </div>
+            </div>
+            
+            
+        </header>
+
+        <main class="main-content">
+            <section class="progress-section">
+                <h2><i class="fas fa-tasks"></i> Your Progress</h2>
+                <div class="progress-cards">
+                    <div class="progress-card correct">
+                        <div class="progress-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="progress-details">
+                            <div class="progress-count">{{ correct }}</div>
+                            <div class="progress-label">Correct</div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-card incorrect">
+                        <div class="progress-icon">
+                            <i class="fas fa-times-circle"></i>
+                        </div>
+                        <div class="progress-details">
+                            <div class="progress-count">{{ incorrect }}</div>
+                            <div class="progress-label">Incorrect</div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-card skipped">
+                        <div class="progress-icon">
+                            <i class="fas fa-forward"></i>
+                        </div>
+                        <div class="progress-details">
+                            <div class="progress-count">{{ skip }}</div>
+                            <div class="progress-label">Skipped</div>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-card skipped-marks">
+                        <div class="progress-icon">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <div class="progress-details">
+                            <div class="progress-count">{{ correct }}/{{ total }}</div>
+                            <div class="progress-label">Total Score</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            
+                <div class="visualization">
+                    <div class="viz-card">
+                        <h3><i class="fas fa-chart-pie"></i> Score Distribution</h3>
+                            <div class="pie-wrapper">
+                                <div class="pie-chart"
+                                    style="
+                                    --correct: {{ correct_deg }};
+                                    --incorrect: {{ incorrect_deg }};
+                                    --skipped: {{ skip_deg   }};
+                                    ">
+                                    <div class="pie-center"></div>
+                                </div>
+                            </div>
+                            <div class="legend">
+                                <div class="legend-item">
+                                    <span class="color-box correct-color"></span>
+                                    <span>Correct ({{ correct }})</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="color-box incorrect-color"></span>
+                                    <span>Incorrect ({{ incorrect }})</span>
+                                </div>
+                                <div class="legend-item">
+                                    <span class="color-box skipped-color"></span>
+                                    <span>Skipped ({{ skip }})</span>
+                                </div>
+                            </div>
+                        </div>
+                    
+                    <div class="viz-card">
+                        <h3><i class="fas fa-clock"></i> Time Analysis</h3>
+                        <div class="time-bars">
+                            <div class="time-bar">
+                                <div class="bar-label">Physics</div>
+                                <div class="bar-container">
+                                    <div class="bar-fill" style="width: 20%;"></div>
+                                </div>
+                                <div class="bar-value">28s</div>
+                            </div>
+                            <div class="time-bar">
+                                <div class="bar-label">Chemistry</div>
+                                <div class="bar-container">
+                                    <div class="bar-fill" style="width: 0%;"></div>
+                                </div>
+                                <div class="bar-value">0s</div>
+                            </div>
+                            <div class="time-bar">
+                                <div class="bar-label">Maths</div>
+                                <div class="bar-container">
+                                    <div class="bar-fill" style="width: 0%;"></div>
+                                </div>
+                                <div class="bar-value">0s</div>
+                            </div>
+                        </div>
+                        <p class="time-note">Total time spent: 28 seconds</p>
+                    </div>
+                </div>
+
+            <section class="performance-section">
+                <h2><i class="fas fa-chart-bar"></i> Section Wise Performance</h2>
+                <div class="table-container">
+                    <table class="performance-table">
+                        <thead>
+                            <tr>
+                                <th>Section</th>
+                                <th>Score</th>
+                                <th>Percentile</th>
+                                <th>Rank</th>
+                                <th>Correct</th>
+                                <th>Incorrect</th>
+                                <th>Skipped</th>
+                                <th>Accuracy</th>
+                                <th>Time Taken</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="section-name">
+                                    <i class="fas fa-atom"></i> Physics
+                                </td>
+                                <td class="score-cell">0</td>
+                                <td class="percentile-cell">--</td>
+                                <td class="rank-cell">--</td>
+                                <td class="correct-cell">0</td>
+                                <td class="incorrect-cell">0</td>
+                                <td class="skipped-cell">25</td>
+                                <td class="accuracy-cell">0%</td>
+                                <td class="time-cell">00:00:28</td>
+                            </tr>
+                            <tr>
+                                <td class="section-name">
+                                    <i class="fas fa-flask"></i> Chemistry
+                                </td>
+                                <td class="score-cell">0</td>
+                                <td class="percentile-cell">--</td>
+                                <td class="rank-cell">--</td>
+                                <td class="correct-cell">0</td>
+                                <td class="incorrect-cell">0</td>
+                                <td class="skipped-cell">25</td>
+                                <td class="accuracy-cell">0%</td>
+                                <td class="time-cell">-</td>
+                            </tr>
+                            <tr>
+                                <td class="section-name">
+                                    <i class="fas fa-calculator"></i> Maths
+                                </td>
+                                <td class="score-cell">0</td>
+                                <td class="percentile-cell">--</td>
+                                <td class="rank-cell">--</td>
+                                <td class="correct-cell">0</td>
+                                <td class="incorrect-cell">0</td>
+                                <td class="skipped-cell">25</td>
+                                <td class="accuracy-cell">0%</td>
+                                <td class="time-cell">-</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            
+            </section>
+
+            
+            
+            <div class="cta-section">
+                <a href="#" class="cta-button">
+                    <i class="fas fa-chart-area"></i> View Detailed Analysis
+                </a>
+                {% comment %} <a href="{% url 'test_all:restart' slug=test.test_slug %}" class="cta-button secondary">
+                    <i class="fas fa-redo"></i> Retake Test
+                </a>  {% endcomment %}
+
+                <a href="#" class="cta-button secondary">
+                    <i class="fas fa-download"></i> Download Report
+                </a>
+            </div>
+        </main>
+        
+        <footer class="footer">
+            <p>PYQ Test Results Dashboard • All data is simulated for demonstration purposes</p>
+            {% comment %} <p class="footer-note">Note: This test was attempted but no answers were submitted, resulting in a score of 0/300.</p> {% endcomment %}
+        </footer>
+    </div>
+</body>
+
+
+</html>

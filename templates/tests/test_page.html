@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}EduLearn - Tests{% endblock %}
+
+{% block css %}
+<link rel='stylesheet' href="{% static 'css/layout.css' %}">
+<link rel='stylesheet' href="{% static 'css/test_page.css' %}">
+{% endblock %}
+
+{% block content %}
+<!-- Available Tests -->
+<section class="available-tests">
+    <div class="container">
+        <div class="section-header">
+            <div class="section-header-top">
+                <h2 class="section-title">Available <span class="highlight">Tests</span></h2>
+                <div class="search-filter">
+
+                    {% comment %} <form class="search-box" method="GET">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="test-search" name="query" placeholder="Search tests...">
+                    <button type="submit" style="display:none;"></button> <!-- optional hidden submit -->
+                    </form> {% endcomment %}
+
+                    <form class="search-box" method="GET" 
+                    onsubmit="window.history.replaceState(null,'',window.location.pathname)">
+                    <select name="category">
+                        <option value="">All Categories</option>
+                        {% for sub in subject %}
+                        <option value="{{ sub }}" {% if sub == request.GET.category %}selected{% endif %}>{{ sub }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit">Filter</button>
+                    </form>
+
+
+                </div>
+            </div>
+            <p class="section-description">Select a test to begin your assessment. All tests include detailed results and performance analytics.</p>
+        </div>
+        
+        
+
+        <div class="tests-grid">
+
+            {% for test in tests %}
+            <!-- Test Card 1 -->
+            <div class="test-card" data-category="technology">
+                <div class="test-card-header">
+                    <span class="test-category technology">{{ test.subject }}</span>
+                    <div class="test-difficulty">
+                        <i class="fas fa-signal"></i>
+                        <span>Intermediate</span>
+                    </div>
+                </div>
+
+                
+                <div class="test-card-body">
+                    <h3 class="test-title">{{ test.title}}</h3>
+                    <p class="test-description">{{ test.description }}</p>
+                    
+                    <div class="test-meta">
+                        <div class="test-meta-item">
+                            {% comment %} <i class="far fa-clock"></i> {% endcomment %}
+                            <div>
+                                <span class="meta-label">Duration</span>
+                                <span class="meta-value">{{ test.duration }} minutes</span>
+                            </div>
+                        </div>
+                        <div class="test-meta-item">
+                            {% comment %} <i class="far fa-question-circle"></i> {% endcomment %}
+                            <div>
+                                <span class="meta-label">Questions</span>
+                                <span class="meta-value">{{ test.total_questions }}</span>
+                            </div>
+                        </div>
+                    
+                    </div>
+
+                    <div class="test-card-footer">
+                    {% if request.user.is_authenticated %}
+                        <a href="{% url 'test_all:general_info' test.test_slug %}" class="btn btn-primary btn-start-test" data-test-id="{{ test.id }}">
+                            <i class="fas fa-play-circle"></i> Start Test
+                        </a>
+                    {% else %}
+                        <a href="{% url 'account:login' %}" class="btn btn-primary btn-start-test">
+                            <i class="fas fa-sign-in-alt"></i> Login to Start
+                        </a>
+                    {% endif %}
+                    
+                </div>
+                </div>
+        </div>
+            {% endfor %}
+        
+    </div>
+</section>
+
+    
+{% endblock %}

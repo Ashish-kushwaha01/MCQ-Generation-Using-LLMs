@@ -1,0 +1,1188 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}PDF MCQ Generator{% endblock %}
+
+{% block css %}
+<link rel="stylesheet" type="text/css" href="{% static 'css/pdf_mcq_generator.css' %}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<link rel="stylesheet" href="{% static 'css/layout.css' %}">
+{% endblock %}
+
+{% block content %}
+
+<div class="mcq-split-container">
+    
+    <!-- LEFT SIDEBAR - Chat History (20%) -->
+    <div class="chat-history-sidebar">
+        <div class="chat-header">
+            <i class="fas fa-history"></i>
+            <h3>Chat History</h3>
+            <span class="chat-count">{{ chat_history|length }}</span>
+        </div>
+        
+        <div class="chat-list">
+            {% if chat_history %}
+                {% for chat in chat_history %}
+                <div class="chat-item" onclick="loadConversation({{ forloop.counter0 }})">
+                    <div class="chat-item-question">
+                        <i class="fas fa-question-circle"></i>
+                        <span>{{ chat.question|truncatechars:30 }}</span>
+                    </div>
+                    <div class="chat-item-stats">
+                        <i class="fas fa-file-alt"></i>
+                        <span>{{ chat.mcq_count }} MCQs</span>
+                    </div>
+                    
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-chat">
+                    <i class="fas fa-comments"></i>
+                    <p>No chat history yet</p>
+                    <small>Your conversations will appear here</small>
+                </div>
+            {% endif %}
+        </div>
+        
+        <div class="chat-footer">
+            <form method="POST" action="{% url 'pdf_mcq:clear_history' %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="clear-chat-btn" onclick="return confirm('Clear all chat history?')">
+                    <i class="fas fa-trash-alt"></i>
+                    Clear History
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- RIGHT MAIN CONTENT - PDF Upload & Questions (80%) -->
+    <div class="main-content-area">
+        
+        <!-- Header -->
+        <div class="content-header">
+            <h1>
+                <i class="fas fa-file-pdf"></i>
+                PDF MCQ Generator
+            </h1>
+            <p>Upload PDFs and generate MCQs instantly</p>
+        </div>
+        
+        <!-- Upload PDF Section -->
+        <div class="upload-section">
+            <div class="section-card">
+                <div class="section-icon">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                </div>
+                <h3>Upload PDF Files</h3>
+                <p>Upload one or more PDF documents to generate questions from</p>
+                
+                <form method="POST" enctype="multipart/form-data" class="upload-form" id="uploadForm">
+                    {% csrf_token %}
+                    
+                    <div class="file-input-wrapper" id="dropZone">
+                        <input type="file" name="pdf_files" id="pdfFiles" multiple accept=".pdf" required>
+                        <div class="file-input-content">
+                            <i class="fas fa-file-pdf"></i>
+                            <span id="fileCount">Choose PDF files</span>
+                            <small>or drag and drop</small>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn-process" id="processBtn">
+                        <i class="fas fa-cogs"></i>
+                        <span class="btn-label">Process PDFs</span>
+                        <div class="btn-spinner"></div>
+                    </button>
+                </form>
+                
+                <!-- Selected Files Preview with Icons (before upload) -->
+                <div class="selected-files" id="selectedFiles"></div>
+                
+                <!-- Success Message with PDF Icons -->
+                {% if message %}
+                <div class="success-message" id="successMessage">
+                    <i class="fas fa-check-circle"></i>
+                    <div class="success-content">
+                        <strong>{{ message }}</strong>
+                        {% if uploaded_files %}
+                        <div class="uploaded-files-list">
+                            {% for file in uploaded_files %}
+                            <div class="uploaded-file-item">
+                                <i class="fas fa-file-pdf" style="color: {% cycle '#ef4444' '#f59e0b' '#10b981' '#3b82f6' '#8b5cf6' %}"></i>
+                                <span class="file-name">{{ file.name }}</span>
+                                <span class="file-size">{{ file.size|filesizeformat }}</span>
+                                <i class="fas fa-check-circle file-check"></i>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Ask Question Section -->
+<div class="question-section" id="questionSection">
+    <div class="section-card {% if pdfs_processed %}active{% endif %}">
+        <div class="section-icon">
+            <i class="fas fa-question-circle"></i>
+        </div>
+        <h3>Ask Question</h3>
+        <p>Enter the number of MCQs you want to generate from your PDFs</p>
+        
+        <form method="POST" class="question-form" id="questionForm">
+            {% csrf_token %}
+            
+            <div class="input-wrapper">
+                <input 
+                    type="number" 
+                    name="mcq_count" 
+                    id="mcqCountInput"
+                    placeholder="e.g., 10, 24, 100..." 
+                    value="{{ last_count|default:'10' }}"
+                    min="1"
+                    max="100"
+                    required
+                    {% if not pdfs_processed %}disabled{% endif %}
+                >
+                <button type="submit" class="btn-generate" id="generateBtn" {% if not pdfs_processed %}disabled{% endif %}>
+                    <i class="fas fa-magic"></i>
+                    <span>Generate MCQs</span>
+                    <div class="btn-spinner"></div>
+                </button>
+            </div>
+            
+            <!-- Hidden input for question/topic (will be set by JavaScript) -->
+            <input type="hidden" name="question" id="questionHidden" value="generate_mcqs">
+            
+            <div class="input-hint-text">
+                <i class="fas fa-info-circle"></i>
+                <span>Enter any number between 1-100. System will generate that many MCQs based on your PDFs.</span>
+            </div>
+            
+            {% if not pdfs_processed %}
+            <div class="info-message" id="infoMessage">
+                <i class="fas fa-info-circle"></i>
+                Please upload and process PDFs first
+            </div>
+            {% endif %}
+        </form>
+    </div>
+</div>
+        
+        <!-- DYNAMIC QUESTIONS LIST - Parsed from chat_history -->
+        {% if chat_history %}
+        <!-- Show the latest conversation -->
+        <div class="current-conversation" id="currentConversation">
+            {% with conversation=chat_history|last %}
+            <div class="conversation-header">
+                <h2 class="questions-list-title">
+                    <i class="fas fa-list"></i>
+                    {{ conversation.question }} ({{ conversation.mcq_count }} MCQs)
+                </h2>
+                <button class="btn-submit-test" id="submitTestBtn" onclick="submitTest()" style="display: none;">
+                    <i class="fas fa-check-circle"></i>
+                    Submit Test
+                </button>
+            </div>
+            
+            <!-- Test Progress Bar -->
+            <div class="test-progress-bar" id="testProgressBar">
+                <div class="progress-info">
+                    <span id="answeredCount">0</span>/<span id="totalQuestions">{{ conversation.mcq_count }}</span> Questions Answered
+                </div>
+                <div class="progress-track">
+                    <div class="progress-fill" id="progressFill" style="width: 0%;"></div>
+                </div>
+            </div>
+            
+            <!-- Parse and display each MCQ from the conversation -->
+            {% with mcqs=conversation.parsed_mcqs %}
+                {% if mcqs %}
+                    <div class="test-container" id="testContainer">
+                        {% for mcq in mcqs %}
+                        <!-- In your question card, update the data-correct attribute -->
+                        <div class="question-card" id="mcq-{{ forloop.counter }}" data-question-id="{{ forloop.counter }}" 
+                            data-correct="{% if mcq.correct_letter %}{{ mcq.correct_letter }}{% elif mcq.correct_answer %}{{ mcq.correct_answer|slice:':1' }}{% else %}A{% endif %}">
+
+                    
+                            <div class="question-header">
+                                <span class="question-number">Question {{ mcq.number }}.</span>
+                                <span class="question-topic">
+                                    <i class="fas fa-tag"></i>
+                                    {{ mcq.topic|default:conversation.question }}
+                                </span>
+                                <span class="mcq-badge">
+                                    <i class="far fa-clock"></i> MCQ
+                                </span>
+                            </div>
+                            
+                            <div class="question-content">
+                                <div class="question-text">{{ mcq.question }}</div>
+                                
+                                <!-- MCQ Options - Radio buttons for user selection -->
+                                {% if mcq.options %}
+                                <div class="mcq-options test-mode">
+                                    {% for option in mcq.options %}
+                                    <label class="option-row test-option" data-question="{{ forloop.parentloop.counter }}" data-option="{{ option.letter }}" data-correct="{% if option.is_correct %}true{% else %}false{% endif %}">
+                                        <input type="radio" name="question_{{ forloop.parentloop.counter }}" value="{{ option.letter }}" class="option-radio" onchange="handleOptionSelect(this, {{ forloop.parentloop.counter }}, '{{ option.letter }}')">
+                                        <span class="option-letter">{{ option.letter }}</span>
+                                        <span class="option-text">{{ option.text }}</span>
+                                        <span class="selected-indicator">
+                                            <i class="fas fa-check-circle"></i>
+                                        </span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                                {% endif %}
+                                
+                                <!-- Hidden Answer Section (initially hidden) -->
+                                <div class="answer-hidden-section" id="answerSection-{{ forloop.counter }}" style="display: none;">
+                                    <div class="answer-divider">
+                                        <i class="fas fa-check-circle"></i>
+                                        Correct Answer
+                                    </div>
+                                    
+                                    <div class="answer-box">
+                                        <div class="correct-answer-display">
+                                            {{ mcq.correct_answer }}
+                                        </div>
+                                    </div>
+                                    
+                                    {% if mcq.explanation %}
+                                    <div class="explanation-box">
+                                        <strong>Explanation:</strong>
+                                        <div class="explanation-content">
+                                            {{ mcq.explanation }}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <!-- Test Action Buttons -->
+                    <div class="test-actions">
+                        <button class="btn-review" onclick="scrollToUnanswered()">
+                            <i class="fas fa-eye"></i>
+                            Review Unanswered
+                        </button>
+                        <button class="btn-submit-test-large" onclick="submitTest()">
+                            <i class="fas fa-check-circle"></i>
+                            Submit Test
+                        </button>
+                    </div>
+                    
+                    <!-- Results Modal (Hidden by default) -->
+                    <div class="results-modal" id="resultsModal">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h3><i class="fas fa-chart-bar"></i> Test Results</h3>
+                                <button class="modal-close" onclick="closeResultsModal()">&times;</button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="results-summary">
+                                    <div class="result-circle">
+                                        <div class="result-percentage" id="resultPercentage">0%</div>
+                                    </div>
+                                    <div class="result-stats">
+                                        <div class="stat-item">
+                                            <span class="stat-label">Total Questions:</span>
+                                            <span class="stat-value" id="totalQuestionsStat">{{ conversation.mcq_count }}</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Answered:</span>
+                                            <span class="stat-value" id="answeredStat">0</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Correct:</span>
+                                            <span class="stat-value correct-stat" id="correctStat">0</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Incorrect:</span>
+                                            <span class="stat-value incorrect-stat" id="incorrectStat">0</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Unanswered:</span>
+                                            <span class="stat-value unanswered-stat" id="unansweredStat">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="results-breakdown">
+                                    <h4>Question Breakdown</h4>
+                                    <div class="breakdown-list" id="breakdownList">
+                                        <!-- Dynamically populated -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button class="btn-review-test" onclick="reviewTest()">
+                                    <i class="fas fa-redo-alt"></i>
+                                    Review Test
+                                </button>
+                                <button class="btn-show-answers" onclick="showAllAnswers()">
+                                    <i class="fas fa-eye"></i>
+                                    Show All Answers
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                {% else %}
+                    <!-- Fallback: Show raw answer if parsing failed -->
+                    <div class="question-card">
+                        <div class="question-header">
+                            <span class="question-number">Raw Response:</span>
+                        </div>
+                        <div class="question-content">
+                            <pre class="raw-answer">{{ conversation.answer }}</pre>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endwith %}
+            {% endwith %}
+        </div>
+        
+        <!-- Previous Conversations -->
+        {% if chat_history|length > 1 %}
+        <div class="previous-conversations">
+            <h3 class="collapse-header" onclick="togglePreviousConversations()">
+                <i class="fas fa-chevron-down" id="collapseIcon"></i>
+                Previous Conversations ({{ chat_history|length|add:"-1" }})
+            </h3>
+            
+            <div class="previous-list" id="previousList" style="display: none;">
+                {% for conversation in chat_history|slice:":-1" %}
+                <div class="previous-item" onclick="loadConversation({{ forloop.counter0 }})">
+                    <div class="previous-question">
+                        <i class="fas fa-question-circle"></i>
+                        {{ conversation.question|truncatechars:40 }}
+                    </div>
+                    <div class="previous-meta">
+                        <span class="previous-count">{{ conversation.mcq_count }} MCQs</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        {% else %}
+        <!-- Empty state when no questions -->
+        <div class="empty-questions">
+            <div class="empty-questions-icon">
+                <i class="fas fa-question-circle"></i>
+            </div>
+            <h3>No Questions Generated Yet</h3>
+            <p>Upload PDFs and enter a topic above to generate multiple-choice questions.</p>
+            <div class="empty-steps">
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <span>Upload PDFs</span>
+                </div>
+                <div class="step-arrow">
+                    <i class="fas fa-arrow-right"></i>
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <span>Click Process</span>
+                </div>
+                <div class="step-arrow">
+                    <i class="fas fa-arrow-right"></i>
+                </div>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <span>Enter Topic</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+            
+        <!-- Features Section -->
+        <div class="features-section">
+            <div class="feature-item">
+                <i class="fas fa-bolt"></i>
+                <span>Instant Generation</span>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-check-circle"></i>
+                <span>Multiple PDFs</span>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-brain"></i>
+                <span>AI-Powered</span>
+            </div>
+            <div class="feature-item">
+                <i class="fas fa-history"></i>
+                <span>Chat History</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Store chat history data for JavaScript -->
+<script id="chatHistoryData" type="application/json">
+{{ chat_history_json|safe }}
+</script>
+
+<script>
+// ==================== FILE HANDLING WITH ICONS ====================
+const pdfInput = document.getElementById('pdfFiles');
+const fileCountSpan = document.getElementById('fileCount');
+const selectedFilesDiv = document.getElementById('selectedFiles');
+const dropZone = document.getElementById('dropZone');
+
+// Color array for PDF icons
+const pdfColors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
+
+// ==================== MCQ NUMBER INPUT VALIDATION ====================
+const mcqCountInput = document.getElementById('mcqCountInput');
+const generateBtn = document.getElementById('generateBtn');
+const questionHidden = document.getElementById('questionHidden');
+
+if (mcqCountInput) {
+    // Set default value
+    if (!mcqCountInput.value) {
+        mcqCountInput.value = 10;
+    }
+    
+    // Validate on input
+    mcqCountInput.addEventListener('input', function(e) {
+        let value = parseInt(this.value);
+        
+        // Handle empty or invalid input
+        if (isNaN(value) || value < 1) {
+            this.value = 1;
+        } else if (value > 100) {
+            this.value = 100;
+            showNotification('Maximum 100 MCQs allowed', 'warning');
+        }
+    });
+    
+    // Validate on blur
+    mcqCountInput.addEventListener('blur', function(e) {
+        if (this.value === '' || this.value === null) {
+            this.value = 10; // Default value
+        }
+        
+        // Ensure it's a valid number
+        let value = parseInt(this.value);
+        if (isNaN(value)) {
+            this.value = 10;
+        }
+    });
+    
+    // Add keyboard support for Enter key
+    mcqCountInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            document.getElementById('questionForm').submit();
+        }
+    });
+}
+
+// Form submission handler
+document.getElementById('questionForm')?.addEventListener('submit', function(e) {
+    const mcqCount = parseInt(mcqCountInput.value);
+    
+    // Validate
+    if (isNaN(mcqCount) || mcqCount < 1) {
+        e.preventDefault();
+        alert('Please enter a valid number of MCQs (minimum 1)');
+        mcqCountInput.focus();
+        return;
+    }
+    
+    if (mcqCount > 100) {
+        e.preventDefault();
+        alert('Maximum 100 MCQs allowed. Please enter a smaller number.');
+        mcqCountInput.value = 100;
+        mcqCountInput.focus();
+        return;
+    }
+    
+    // Set the hidden question field with a default value
+    // This will be used by the backend as the topic/question
+    questionHidden.value = `Generate ${mcqCount} MCQs`;
+    
+    // Show loading state
+    generateBtn.classList.add('loading');
+    mcqCountInput.disabled = true;
+    
+    // Show notification
+    showNotification(`Generating ${mcqCount} MCQs...`, 'info');
+});
+
+// Optional: Add quick select buttons for common values
+function addQuickSelectButtons() {
+    const inputWrapper = document.querySelector('.input-wrapper');
+    if (!inputWrapper) return;
+    
+    const quickSelectDiv = document.createElement('div');
+    quickSelectDiv.className = 'quick-select-buttons';
+    quickSelectDiv.innerHTML = `
+        <button type="button" class="quick-select-btn" onclick="setMCQCount(5)">5</button>
+        <button type="button" class="quick-select-btn" onclick="setMCQCount(10)">10</button>
+        <button type="button" class="quick-select-btn" onclick="setMCQCount(15)">15</button>
+        <button type="button" class="quick-select-btn" onclick="setMCQCount(20)">20</button>
+        <button type="button" class="quick-select-btn" onclick="setMCQCount(25)">25</button>
+        <button type="button" class="quick-select-btn" onclick="setMCQCount(50)">50</button>
+    `;
+    
+    inputWrapper.parentNode.insertBefore(quickSelectDiv, inputWrapper.nextSibling);
+}
+
+// Function to set MCQ count from quick select buttons
+function setMCQCount(count) {
+    const mcqCountInput = document.getElementById('mcqCountInput');
+    if (mcqCountInput && !mcqCountInput.disabled) {
+        mcqCountInput.value = count;
+        mcqCountInput.focus();
+        showNotification(`Set to generate ${count} MCQs`, 'success');
+    }
+}
+
+// Add quick select buttons if enabled (optional)
+// Uncomment the line below if you want quick select buttons
+// document.addEventListener('DOMContentLoaded', addQuickSelectButtons);
+
+// Notification function
+function showNotification(message, type = 'info') {
+    // Remove any existing notification
+    const existingNotification = document.querySelector('.temp-notification');
+    if (existingNotification) {
+        existingNotification.remove();
+    }
+    
+    // Create new notification
+    const notification = document.createElement('div');
+    notification.className = `temp-notification ${type}`;
+    notification.innerHTML = `
+        <i class="fas fa-${type === 'info' ? 'info-circle' : 'check-circle'}"></i>
+        <span>${message}</span>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.add('fade-out');
+        setTimeout(() => notification.remove(), 500);
+    }, 3000);
+}
+
+// Add notification styles
+const style = document.createElement('style');
+style.textContent = `
+    .temp-notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: white;
+        border-radius: 8px;
+        padding: 12px 20px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        z-index: 9999;
+        animation: slideInRight 0.3s ease;
+        border-left: 4px solid var(--primary);
+    }
+    
+    .temp-notification.info {
+        border-left-color: var(--primary);
+    }
+    
+    .temp-notification.success {
+        border-left-color: var(--success);
+    }
+    
+    .temp-notification.warning {
+        border-left-color: var(--warning);
+    }
+    
+    .temp-notification i {
+        font-size: 18px;
+    }
+    
+    .temp-notification.info i {
+        color: var(--primary);
+    }
+    
+    .temp-notification.success i {
+        color: var(--success);
+    }
+    
+    .temp-notification.warning i {
+        color: var(--warning);
+    }
+    
+    .temp-notification.fade-out {
+        animation: fadeOut 0.5s ease forwards;
+    }
+    
+    .quick-select-buttons {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+    }
+    
+    .quick-select-btn {
+        padding: 6px 12px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--gray);
+        cursor: pointer;
+        transition: var(--transition);
+    }
+    
+    .quick-select-btn:hover {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: white;
+        transform: translateY(-1px);
+    }
+    
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes fadeOut {
+        from {
+            opacity: 1;
+            transform: translateX(0);
+        }
+        to {
+            opacity: 0;
+            transform: translateX(100%);
+        }
+    }
+`;
+
+document.head.appendChild(style);
+
+// Enable/disable input based on PDF processing status
+document.addEventListener('DOMContentLoaded', function() {
+    {% if pdfs_processed %}
+    const mcqCountInput = document.getElementById('mcqCountInput');
+    const generateBtn = document.getElementById('generateBtn');
+    const infoMessage = document.getElementById('infoMessage');
+    
+    if (mcqCountInput) {
+        mcqCountInput.disabled = false;
+        mcqCountInput.focus();
+    }
+    if (generateBtn) generateBtn.disabled = false;
+    if (infoMessage) infoMessage.style.display = 'none';
+    {% endif %}
+});
+
+// File input change event
+pdfInput.addEventListener('change', function(e) {
+    const files = e.target.files;
+    const fileCount = files.length;
+    
+    if (fileCount > 0) {
+        fileCountSpan.textContent = fileCount + ' file(s) selected';
+        displaySelectedFiles(files);
+    } else {
+        fileCountSpan.textContent = 'Choose PDF files';
+        selectedFilesDiv.innerHTML = '';
+    }
+});
+
+// Display selected files with icons
+function displaySelectedFiles(files) {
+    selectedFilesDiv.innerHTML = '<div class="selected-files-header"><i class="fas fa-file-pdf"></i> Selected Files:</div>';
+    
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const fileItem = document.createElement('div');
+        fileItem.className = 'selected-file-item';
+        fileItem.setAttribute('data-fullname', file.name);
+        
+        fileItem.innerHTML = `
+            <i class="fas fa-file-pdf" style="color: ${pdfColors[i % pdfColors.length]};"></i>
+            <span class="file-name">${file.name}</span>
+            <span class="file-size">${(file.size / 1024).toFixed(1)} KB</span>
+            <i class="fas fa-check-circle file-check"></i>
+        `;
+        
+        selectedFilesDiv.appendChild(fileItem);
+    }
+}
+
+// Drag and drop functionality
+if (dropZone) {
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+    });
+    
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, highlight, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, unhighlight, false);
+    });
+    
+    function highlight() {
+        dropZone.classList.add('highlight');
+    }
+    
+    function unhighlight() {
+        dropZone.classList.remove('highlight');
+    }
+    
+    dropZone.addEventListener('drop', handleDrop, false);
+    
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = [...dt.files].filter(f => f.type === 'application/pdf');
+        
+        if (files.length) {
+            pdfInput.files = (function() {
+                const dt = new DataTransfer();
+                files.forEach(f => dt.items.add(f));
+                return dt.files;
+            })();
+            
+            // Trigger change event
+            const event = new Event('change', { bubbles: true });
+            pdfInput.dispatchEvent(event);
+        }
+    }
+}
+
+// ==================== MCQ TEST FUNCTIONALITY ====================
+
+// Track user answers
+let userAnswers = {};
+let testResults = null;
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    {% if pdfs_processed %}
+    const questionInput = document.getElementById('questionInput');
+    const generateBtn = document.getElementById('generateBtn');
+    const infoMessage = document.getElementById('infoMessage');
+    
+    if (questionInput) {
+        questionInput.disabled = false;
+        questionInput.focus();
+    }
+    if (generateBtn) generateBtn.disabled = false;
+    if (infoMessage) infoMessage.style.display = 'none';
+    {% endif %}
+    
+    // Initialize test tracking
+    initializeTest();
+    
+    // Auto-show submit button if any answers are selected
+    updateSubmitButtonVisibility();
+});
+
+// Initialize test tracking
+function initializeTest() {
+    const totalQuestions = document.querySelectorAll('.question-card').length;
+    if (totalQuestions === 0) return;
+    
+    // Initialize userAnswers object
+    for (let i = 1; i <= totalQuestions; i++) {
+        userAnswers[i] = null;
+    }
+    
+    // Update progress bar
+    updateProgressBar();
+}
+
+// Handle option selection
+function handleOptionSelect(radio, questionId, selectedOption) {
+    // Remove selected class from all options in this question
+    const questionOptions = document.querySelectorAll(`#mcq-${questionId} .test-option`);
+    questionOptions.forEach(opt => opt.classList.remove('selected'));
+    
+    // Add selected class to current option
+    radio.closest('.test-option').classList.add('selected');
+    
+    // Store user answer
+    userAnswers[questionId] = selectedOption;
+    
+    // Mark question as answered
+    const questionCard = document.getElementById(`mcq-${questionId}`);
+    questionCard.classList.add('answered');
+    
+    // Update progress bar
+    updateProgressBar();
+    
+    // Update submit button visibility
+    updateSubmitButtonVisibility();
+    
+    // Auto-scroll to next unanswered question (optional)
+    // scrollToNextUnanswered(questionId);
+}
+
+// Update progress bar
+function updateProgressBar() {
+    const totalQuestions = document.querySelectorAll('.question-card').length;
+    const answeredCount = Object.values(userAnswers).filter(a => a !== null).length;
+    const progressPercentage = (answeredCount / totalQuestions) * 100;
+    
+    // Update progress bar
+    const progressFill = document.getElementById('progressFill');
+    const answeredSpan = document.getElementById('answeredCount');
+    const totalSpan = document.getElementById('totalQuestions');
+    
+    if (progressFill) progressFill.style.width = `${progressPercentage}%`;
+    if (answeredSpan) answeredSpan.textContent = answeredCount;
+    if (totalSpan) totalSpan.textContent = totalQuestions;
+}
+
+// Update submit button visibility
+function updateSubmitButtonVisibility() {
+    const submitBtn = document.getElementById('submitTestBtn');
+    const answeredCount = Object.values(userAnswers).filter(a => a !== null).length;
+    
+    if (submitBtn) {
+        if (answeredCount > 0) {
+            submitBtn.style.display = 'inline-flex';
+        } else {
+            submitBtn.style.display = 'none';
+        }
+    }
+}
+
+// Scroll to next unanswered question
+function scrollToNextUnanswered(currentId) {
+    const totalQuestions = document.querySelectorAll('.question-card').length;
+    let nextUnanswered = null;
+    
+    for (let i = 1; i <= totalQuestions; i++) {
+        if (userAnswers[i] === null && i > currentId) {
+            nextUnanswered = document.getElementById(`mcq-${i}`);
+            break;
+        }
+    }
+    
+    if (!nextUnanswered) {
+        // If no unanswered after current, check from beginning
+        for (let i = 1; i <= totalQuestions; i++) {
+            if (userAnswers[i] === null) {
+                nextUnanswered = document.getElementById(`mcq-${i}`);
+                break;
+            }
+        }
+    }
+    
+    if (nextUnanswered) {
+        nextUnanswered.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+// Scroll to unanswered questions
+function scrollToUnanswered() {
+    const totalQuestions = document.querySelectorAll('.question-card').length;
+    
+    for (let i = 1; i <= totalQuestions; i++) {
+        if (userAnswers[i] === null) {
+            const unansweredCard = document.getElementById(`mcq-${i}`);
+            if (unansweredCard) {
+                unansweredCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                // Highlight briefly
+                unansweredCard.classList.add('highlight-unanswered');
+                setTimeout(() => {
+                    unansweredCard.classList.remove('highlight-unanswered');
+                }, 2000);
+                break;
+            }
+        }
+    }
+}
+
+// Update the submitTest function to properly compare answers
+// Fix the submitTest function
+function submitTest() {
+    const totalQuestions = document.querySelectorAll('.question-card').length;
+    const answeredCount = Object.values(userAnswers).filter(a => a !== null).length;
+    
+    if (answeredCount < totalQuestions) {
+        if (!confirm(`You have ${totalQuestions - answeredCount} unanswered questions. Do you still want to submit?`)) {
+            return;
+        }
+    }
+    
+    // Calculate results
+    let correctCount = 0;
+    let incorrectCount = 0;
+    const breakdown = [];
+    
+    for (let i = 1; i <= totalQuestions; i++) {
+        const questionCard = document.getElementById(`mcq-${i}`);
+        
+        // Get correct answer letter
+        let correctAnswer = questionCard.dataset.correct;
+        
+        // Clean up correct answer - remove any extra characters
+        if (correctAnswer) {
+            // If it contains ')', take only the part before it
+            if (correctAnswer.includes(')')) {
+                correctAnswer = correctAnswer.split(')')[0].trim();
+            }
+            // Take only the first character if it's a letter
+            correctAnswer = correctAnswer.charAt(0).toUpperCase();
+        }
+        
+        // Get user's answer
+        let userAnswer = userAnswers[i];
+        
+        // Clean up user answer
+        if (userAnswer) {
+            // If it contains ')', take only the part before it
+            if (userAnswer.includes(')')) {
+                userAnswer = userAnswer.split(')')[0].trim();
+            }
+            // Take only the first character
+            userAnswer = userAnswer.charAt(0).toUpperCase();
+        }
+        
+        // Compare answers
+        let isCorrect = false;
+        if (userAnswer && correctAnswer) {
+            isCorrect = (userAnswer === correctAnswer);
+            
+            // Debug log to see what's being compared
+            console.log(`Question ${i}: User="${userAnswer}", Correct="${correctAnswer}", Match=${isCorrect}`);
+        }
+        
+        if (isCorrect) {
+            correctCount++;
+        } else if (userAnswer) {
+            incorrectCount++;
+        }
+        
+        // Get full text for display
+        const userFullText = userAnswer ? getOptionText(i, userAnswer) : '';
+        const correctFullText = getOptionText(i, correctAnswer);
+        
+        breakdown.push({
+            question: i,
+            userAnswer: userAnswer,
+            userFullText: userFullText,
+            correctAnswer: correctAnswer,
+            correctFullText: correctFullText,
+            isCorrect: isCorrect,
+            isAnswered: userAnswer !== null
+        });
+    }
+    
+    const unansweredCount = totalQuestions - (correctCount + incorrectCount);
+    const percentage = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+    
+    // Store results
+    testResults = {
+        total: totalQuestions,
+        answered: answeredCount,
+        correct: correctCount,
+        incorrect: incorrectCount,
+        unanswered: unansweredCount,
+        percentage: percentage,
+        breakdown: breakdown
+    };
+    
+    // Log to verify
+    console.log('Test Results:', testResults);
+    
+    // Show results modal
+    showResultsModal(testResults);
+}
+
+// Helper function to get option text by letter
+function getOptionText(questionId, optionLetter) {
+    if (!optionLetter) return '';
+    
+    const optionRows = document.querySelectorAll(`#mcq-${questionId} .option-row`);
+    for (let row of optionRows) {
+        const letter = row.querySelector('.option-letter')?.textContent.trim();
+        if (letter && letter.charAt(0).toUpperCase() === optionLetter.charAt(0).toUpperCase()) {
+            return row.querySelector('.option-text')?.textContent.trim() || '';
+        }
+    }
+    return '';
+}
+
+// Helper function to get option text by letter
+function getOptionText(questionId, optionLetter) {
+    const optionRows = document.querySelectorAll(`#mcq-${questionId} .option-row`);
+    for (let row of optionRows) {
+        const letter = row.querySelector('.option-letter')?.textContent.trim();
+        if (letter === optionLetter) {
+            return row.querySelector('.option-text')?.textContent.trim() || '';
+        }
+    }
+    return '';
+}
+
+// Update the showResultsModal function to properly display answers
+function showResultsModal(results) {
+    const modal = document.getElementById('resultsModal');
+    if (!modal) return;
+    
+    // Update stats - make sure these IDs exist in your modal
+    document.getElementById('totalQuestionsStat').textContent = results.total;
+    document.getElementById('answeredStat').textContent = results.answered;
+    document.getElementById('correctStat').textContent = results.correct;
+    document.getElementById('incorrectStat').textContent = results.incorrect;
+    document.getElementById('unansweredStat').textContent = results.unanswered;
+    document.getElementById('resultPercentage').textContent = results.percentage + '%';
+    
+    // Populate breakdown
+    const breakdownList = document.getElementById('breakdownList');
+    if (breakdownList) {
+        breakdownList.innerHTML = '';
+        
+        results.breakdown.forEach(item => {
+            const breakdownItem = document.createElement('div');
+            breakdownItem.className = `breakdown-item ${item.isCorrect ? 'correct' : (item.isAnswered ? 'incorrect' : 'unanswered')}`;
+            
+            // Format display text
+            const userDisplay = item.isAnswered ? 
+                `${item.userAnswer}) ${item.userFullText}` : 
+                'Not answered';
+            
+            const correctDisplay = `${item.correctAnswer}) ${item.correctFullText}`;
+            
+            breakdownItem.innerHTML = `
+                <div class="breakdown-header">
+                    <span class="breakdown-question">Question ${item.question}</span>
+                    <span class="breakdown-status-icon">
+                        ${item.isCorrect ? '✅' : (item.isAnswered ? '❌' : '⭕')}
+                    </span>
+                </div>
+                <div class="breakdown-details">
+                    <div class="user-answer">
+                        <span class="label">Your answer:</span>
+                        <span class="user-answer-text">${userDisplay}</span>
+                    </div>
+                    <div class="correct-answer">
+                        <span class="label">Correct:</span>
+                        <span class="correct-text">${correctDisplay}</span>
+                    </div>
+                </div>
+            `;
+            
+            breakdownList.appendChild(breakdownItem);
+        });
+    }
+    
+    // Show modal
+    modal.style.display = 'flex';
+}
+
+// Close results modal
+function closeResultsModal() {
+    document.getElementById('resultsModal').style.display = 'none';
+}
+
+// Review test (close modal)
+function reviewTest() {
+    closeResultsModal();
+}
+
+// Show all answers
+function showAllAnswers() {
+    closeResultsModal();
+    
+    const totalQuestions = document.querySelectorAll('.question-card').length;
+    for (let i = 1; i <= totalQuestions; i++) {
+        const answerSection = document.getElementById(`answerSection-${i}`);
+        if (answerSection) {
+            answerSection.style.display = 'block';
+        }
+        
+        // Highlight correct answers
+        const optionRows = document.querySelectorAll(`#mcq-${i} .option-row`);
+        optionRows.forEach(row => {
+            if (row.dataset.correct === 'true') {
+                row.classList.add('correct-option');
+                const badge = row.querySelector('.correct-badge');
+                if (badge) badge.style.display = 'inline-block';
+            }
+        });
+    }
+}
+
+// ==================== LOAD CONVERSATION FROM HISTORY ====================
+function loadConversation(index) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '';
+    
+    const csrfInput = document.createElement('input');
+    csrfInput.type = 'hidden';
+    csrfInput.name = 'csrfmiddlewaretoken';
+    csrfInput.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    const loadInput = document.createElement('input');
+    loadInput.type = 'hidden';
+    loadInput.name = 'load_conversation';
+    loadInput.value = index;
+    
+    form.appendChild(csrfInput);
+    form.appendChild(loadInput);
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// ==================== TOGGLE PREVIOUS CONVERSATIONS ====================
+function togglePreviousConversations() {
+    const previousList = document.getElementById('previousList');
+    const collapseIcon = document.getElementById('collapseIcon');
+    
+    if (previousList.style.display === 'none') {
+        previousList.style.display = 'block';
+        collapseIcon.className = 'fas fa-chevron-up';
+    } else {
+        previousList.style.display = 'none';
+        collapseIcon.className = 'fas fa-chevron-down';
+    }
+}
+
+// ==================== FORM SUBMISSION LOADING STATES ====================
+document.getElementById('uploadForm')?.addEventListener('submit', function(e) {
+    const files = document.getElementById('pdfFiles').files;
+    if (files.length === 0) {
+        e.preventDefault();
+        alert('Please select at least one PDF file');
+        return;
+    }
+    
+    document.getElementById('processBtn').classList.add('loading');
+});
+
+document.getElementById('questionForm')?.addEventListener('submit', function() {
+    document.getElementById('generateBtn').classList.add('loading');
+});
+</script>
+
+{% endblock %}
