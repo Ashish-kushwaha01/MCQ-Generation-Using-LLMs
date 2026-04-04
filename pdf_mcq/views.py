@@ -1,99 +1,38 @@
-from django.shortcuts import render, redirect
+import os
 import json
+import uuid
+from datetime import datetime
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import JsonResponse
+from django.utils import timezone
+from django.core.serializers.json import DjangoJSONEncoder
 
 from .pdf_logic import (
     get_pdf_text,
     get_text_chunks,
     create_vector_store,
-    ask_question
+    ask_question_json
 )
-
-def parse_mcqs_from_answer(answer_text):
-    """Parse the LLM response into individual MCQs"""
-    mcqs = []
-    
-    if not answer_text:
-        return mcqs
-    
-    lines = answer_text.split('\n')
-    current_mcq = None
-    in_options = False
-    
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        
-        # Check for question number (e.g., "1.", "2.", etc.)
-        question_match = __import__('re').match(r'^(\d+)\.\s*(.+)$', line)
-        if question_match:
-            # Save previous MCQ
-            if current_mcq:
-                mcqs.append(current_mcq)
-            
-            # Start new MCQ
-            current_mcq = {
-                'number': question_match.group(1),
-                'question': question_match.group(2),
-                'options': [],
-                'correct_answer': '',
-                'explanation': ''
-            }
-            in_options = True
-            continue
-        
-        # Check for options (A), B), C), D))
-        option_match = __import__('re').match(r'^([A-D]\))\s*(.+)$', line)
-        if option_match and current_mcq and in_options:
-            option_text = option_match.group(2)
-            is_correct = '(*)' in option_text
-            clean_text = option_text.replace('(*)', '').strip()
-            
-            current_mcq['options'].append({
-                'letter': option_match.group(1),
-                'text': clean_text,
-                'is_correct': is_correct
-            })
-            
-            if is_correct:
-                current_mcq['correct_answer'] = f"{option_match.group(1)} {clean_text}"
-            continue
-        
-        # Check for answer/correct answer line
-        if 'answer' in line.lower() and current_mcq:
-            in_options = False
-            if current_mcq['explanation']:
-                current_mcq['explanation'] += '\n' + line
-            else:
-                current_mcq['explanation'] = line
-            continue
-        
-        # Add to explanation if we're past options
-        if current_mcq and not in_options:
-            if current_mcq['explanation']:
-                current_mcq['explanation'] += '\n' + line
-            else:
-                current_mcq['explanation'] = line
-    
-    # Add the last MCQ
-    if current_mcq:
-        mcqs.append(current_mcq)
-    
-    return mcqs
+from .models import PDFDocument, MCQSession, MCQQuestion, UserAnswer
 
 
+@login_required(login_url='account:login')
 def pdf_mcq_view(request):
     context = {}
+    user = request.user
     
-    # Initialize session variables if they don't exist
-    if 'chat_history' not in request.session:
-        request.session['chat_history'] = []
-    if 'pdfs_processed' not in request.session:
-        request.session['pdfs_processed'] = False
+    # Get user-specific data
+    pdf_documents = PDFDocument.objects.filter(user=user).order_by('-uploaded_at')
+    mcq_sessions = MCQSession.objects.filter(user=user).order_by('-created_at')
     
-    # Get current session data
-    chat_history = request.session.get('chat_history', [])
-    pdfs_processed = request.session.get('pdfs_processed', False)
+    # Check if PDFs are processed for this user
+    vector_store_path = f"faiss_index_{user.id}"
+    vector_store_exists = os.path.exists(vector_store_path)
+    
+    # IMPORTANT: Set pdfs_processed for template
+    context['pdfs_processed'] = vector_store_exists
     
     if request.method == "POST":
         # PDF Upload
@@ -102,94 +41,267 @@ def pdf_mcq_view(request):
             text = get_pdf_text(pdf_files)
             
             if not text or not text.strip():
-                context["message"] = "❌ No text found in the uploaded PDF."
+                messages.error(request, "❌ No text found in the uploaded PDF.")
                 return render(request, "pdf_mcq_generate.html", context)
             
             chunks = get_text_chunks(text)
             if not chunks:
-                context["message"] = "❌ Could not create text chunks from the PDF."
+                messages.error(request, "❌ Could not create text chunks from the PDF.")
                 return render(request, "pdf_mcq_generate.html", context)
             
-            create_vector_store(chunks)
-            request.session['pdfs_processed'] = True
-            pdfs_processed = True
+            # Create user-specific vector store
+            create_vector_store(chunks, user_id=user.id)
             
-            # Store uploaded files info
-            uploaded_files = []
-            for f in pdf_files:
-                uploaded_files.append({
-                    'name': f.name,
-                    'size': f.size
-                })
+            # Save PDF documents to database
+            for pdf_file in pdf_files:
+                PDFDocument.objects.create(
+                    user=user,
+                    file_name=pdf_file.name,
+                    file_size=pdf_file.size
+                )
+            
+            # Update the vector store exists flag
+            vector_store_exists = True
+            context['pdfs_processed'] = True
+            
+            messages.success(request, f"✅ {len(pdf_files)} PDF(s) processed successfully!")
             
             context.update({
-                "message": "✅ PDFs processed successfully!",
-                "uploaded_files": uploaded_files,
+                "message": f"✅ {len(pdf_files)} PDF(s) processed successfully!",
                 "pdfs_processed": True
             })
-            
-            request.session.modified = True
         
-        # Ask Question
-        elif request.POST.get("question"):
-            question = request.POST.get("question")
-            mcq_count = request.POST.get("mcq_count", "10")
+        # Generate MCQs (only number of questions)
+        elif request.POST.get("mcq_count"):
+            mcq_count = int(request.POST.get("mcq_count", "10"))
             
-            # Enhance question with count
-            enhanced_question = f"Generate {mcq_count} multiple choice questions about: {question}. Format each question with number, options A) B) C) D), mark correct answer with (*), and provide explanation."
+            # Validate count
+            if mcq_count < 1 or mcq_count > 100:
+                messages.error(request, "Please enter a number between 1 and 100")
+                return redirect('pdf_mcq:pdf_mcq')
             
             try:
-                answer = ask_question(enhanced_question)
+                # Generate MCQs from PDF
+                result = ask_question_json("Generate comprehensive MCQs from this document", mcq_count, user_id=user.id)
                 
-                # Parse MCQs from the answer
-                parsed_mcqs = parse_mcqs_from_answer(answer)
+                # Create session
+                session_id = str(uuid.uuid4())[:8]
+                mcq_session = MCQSession.objects.create(
+                    user=user,
+                    session_id=session_id,
+                    mcq_count=result['mcq_count']
+                )
                 
-                # Store in chat history - NO TIMESTAMP
-                chat_entry = {
-                    "question": question,
-                    "mcq_count": mcq_count,
-                    "answer": answer,
-                    "parsed_mcqs": parsed_mcqs,
-                }
+                # Save questions to database
+                saved_questions = []
+                for mcq in result['mcqs']:
+                    options = {opt['letter']: opt['text'] for opt in mcq['options']}
+                    
+                    question = MCQQuestion.objects.create(
+                        session=mcq_session,
+                        user=user,
+                        question_number=mcq['number'],
+                        question_text=mcq['question'],
+                        option_a=options.get('A', ''),
+                        option_b=options.get('B', ''),
+                        option_c=options.get('C', ''),
+                        option_d=options.get('D', ''),
+                        correct_answer=mcq.get('correct_letter', 'A'),
+                        explanation=mcq.get('explanation', '')
+                    )
+                    saved_questions.append(question)
                 
-                # Get existing chat history
-                chat_history = request.session.get('chat_history', [])
-                chat_history.append(chat_entry)
-                request.session['chat_history'] = chat_history
+                messages.success(request, f"✅ Generated {result['mcq_count']} MCQs successfully!")
                 
-                # Update context
+                # Prepare context for display
                 context.update({
-                    "question": question,
-                    "answer": answer,
-                    "last_question": question,
-                    "last_count": mcq_count,
-                    "pdfs_processed": pdfs_processed
+                    "current_session": mcq_session,
+                    "current_mcqs": [q.to_json() for q in saved_questions],
+                    "mcq_count": result['mcq_count'],
+                    "pdfs_processed": True,
+                    "show_test": True
                 })
                 
             except Exception as e:
-                context["error"] = f"❌ Error generating MCQ: {str(e)}"
-            
-            request.session.modified = True
+                messages.error(request, f"❌ Error generating MCQ: {str(e)}")
+        
+        # Load specific session from history
+        elif request.POST.get("load_session"):
+            session_id = request.POST.get("load_session")
+            try:
+                mcq_session = MCQSession.objects.get(session_id=session_id, user=user)
+                questions = MCQQuestion.objects.filter(session=mcq_session, user=user).order_by('question_number')
+                
+                # Get user's answers for this session
+                user_answers = UserAnswer.objects.filter(
+                    user=user, 
+                    session=mcq_session
+                ).values_list('question_id', 'selected_answer')
+                user_answers_dict = {str(ua[0]): ua[1] for ua in user_answers}
+                
+                context.update({
+                    "current_session": mcq_session,
+                    "current_mcqs": [q.to_json() for q in questions],
+                    "mcq_count": questions.count(),
+                    "pdfs_processed": True,
+                    "show_test": True,
+                    "user_answers": user_answers_dict
+                })
+            except MCQSession.DoesNotExist:
+                messages.error(request, "Session not found")
     
-    # Simple context with no datetime
-    context['chat_history'] = chat_history
-    context['pdfs_processed'] = pdfs_processed
+    # Get all sessions for chat history
+    all_sessions = MCQSession.objects.filter(user=user).order_by('-created_at')
     
-    # Simple JSON for JavaScript - NO TIMESTAMP
-    chat_history_json = []
-    for chat in chat_history:
-        chat_history_json.append({
-            'question': chat['question'],
-            'mcq_count': chat.get('mcq_count', '10'),
+    # Prepare chat history for sidebar - FIX THE DATETIME SERIALIZATION
+    chat_history = []
+    for session in all_sessions:
+        question_count = MCQQuestion.objects.filter(session=session).count()
+        chat_history.append({
+            'session_id': session.session_id,
+            'mcq_count': question_count,
+            'created_at': session.created_at.isoformat() if session.created_at else None,  # Convert datetime to string
+            'display_date': session.created_at.strftime('%b %d, %Y') if session.created_at else 'Unknown'
         })
-    context['chat_history_json'] = json.dumps(chat_history_json)
+    
+    # Get current session data (most recent if exists)
+    current_session_data = None
+    if all_sessions.exists() and not context.get('current_session'):
+        latest_session = all_sessions.first()
+        questions = MCQQuestion.objects.filter(session=latest_session, user=user).order_by('question_number')
+        if questions.exists():
+            current_session_data = {
+                'session': latest_session,
+                'mcqs': [q.to_json() for q in questions],
+                'mcq_count': questions.count()
+            }
+    
+    # Convert chat history to JSON with proper datetime handling
+    context.update({
+        'chat_history': chat_history,
+        'chat_history_json': json.dumps(chat_history, cls=DjangoJSONEncoder),  # Use DjangoJSONEncoder
+        'pdfs_processed': vector_store_exists,
+        'current_session_data': current_session_data
+    })
     
     return render(request, "pdf_mcq_generate.html", context)
 
 
+@login_required(login_url='account:login')
 def clear_history(request):
     if request.method == "POST":
-        request.session['chat_history'] = []
-        request.session.modified = True
-    # FIXED: Redirect to the correct URL name
-    return redirect('pdf_mcq:pdf_mcq')  # Make sure this matches your URL pattern name
+        # Delete all MCQ sessions and related data for the user
+        MCQSession.objects.filter(user=request.user).delete()
+        messages.success(request, "Chat history cleared successfully!")
+    
+    return redirect('pdf_mcq:pdf_mcq')
+
+
+@login_required(login_url='account:login')
+def submit_answers(request):
+    """API endpoint to submit user answers"""
+    if request.method == "POST":
+        try:
+            user = request.user
+            data = json.loads(request.body)
+            
+            session_id = data.get('session_id')
+            answers = data.get('answers', {})
+            
+            print(f"Received answers for session {session_id}: {answers}")  # Debug
+            
+            if not session_id:
+                return JsonResponse({'status': 'error', 'message': 'Session ID required'}, status=400)
+            
+            try:
+                session = MCQSession.objects.get(session_id=session_id, user=user)
+                
+                saved_count = 0
+                for question_id_str, selected_answer in answers.items():
+                    question_id = int(question_id_str)
+                    try:
+                        question = MCQQuestion.objects.get(id=question_id, user=user, session=session)
+                        
+                        # Compare answers (case insensitive)
+                        is_correct = False
+                        if selected_answer:
+                            is_correct = selected_answer.upper() == question.correct_answer.upper()
+                        
+                        # Update or create user answer
+                        user_answer, created = UserAnswer.objects.update_or_create(
+                            user=user,
+                            question=question,
+                            session=session,
+                            defaults={
+                                'selected_answer': selected_answer.upper() if selected_answer else None,
+                                'is_correct': is_correct
+                            }
+                        )
+                        saved_count += 1
+                        print(f"Saved answer for question {question_id}: {selected_answer} -> Correct: {is_correct}")
+                        
+                    except MCQQuestion.DoesNotExist:
+                        print(f"Question {question_id} not found")
+                        continue
+                
+                print(f"Saved {saved_count} answers for session {session_id}")
+                return JsonResponse({
+                    'status': 'success', 
+                    'message': f'{saved_count} answers saved successfully'
+                })
+                
+            except MCQSession.DoesNotExist:
+                return JsonResponse({'status': 'error', 'message': 'Session not found'}, status=404)
+                
+        except json.JSONDecodeError as e:
+            print(f"JSON decode error: {e}")
+            return JsonResponse({'status': 'error', 'message': 'Invalid JSON data'}, status=400)
+        except Exception as e:
+            print(f"Error saving answers: {e}")
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+
+
+
+@login_required(login_url='account:login')
+def get_session_results(request, session_id):
+    """Get results for a specific session"""
+    user = request.user
+    
+    try:
+        session = MCQSession.objects.get(session_id=session_id, user=user)
+        questions = MCQQuestion.objects.filter(session=session, user=user)
+        
+        results = []
+        correct_count = 0
+        
+        for question in questions:
+            try:
+                user_answer = UserAnswer.objects.get(user=user, question=question, session=session)
+                is_correct = user_answer.is_correct
+                if is_correct:
+                    correct_count += 1
+            except UserAnswer.DoesNotExist:
+                user_answer = None
+                is_correct = False
+            
+            results.append({
+                'question_id': question.id,
+                'question_number': question.question_number,
+                'question_text': question.question_text,
+                'user_answer': user_answer.selected_answer if user_answer else None,
+                'correct_answer': question.correct_answer,
+                'is_correct': is_correct
+            })
+        
+        return JsonResponse({
+            'status': 'success',
+            'total': questions.count(),
+            'correct': correct_count,
+            'percentage': (correct_count / questions.count() * 100) if questions.count() > 0 else 0,
+            'results': results
+        })
+        
+    except MCQSession.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'Session not found'}, status=404)

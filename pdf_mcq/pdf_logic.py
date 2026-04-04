@@ -1,4 +1,7 @@
 import os
+import re
+import json
+import warnings
 from dotenv import load_dotenv
 
 from pypdf import PdfReader
@@ -19,358 +22,283 @@ load_dotenv()
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-genai.configure(api_key=GOOGLE_API_KEY)
-
+# Configure genai
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
+    print(f"Google API configured successfully")
+else:
+    print("WARNING: GOOGLE_API_KEY not found in environment variables")
 
 # -------- PDF TEXT EXTRACTION --------
-from pypdf import PdfReader
-
 def get_pdf_text(pdf_files):
-
     text = ""
-
     for pdf in pdf_files:
-
-        reader = PdfReader(pdf)
-
-        for page in reader.pages:
-
-            page_text = page.extract_text()
-
-            if page_text:
-                text += page_text + "\n"
-
+        try:
+            reader = PdfReader(pdf)
+            for page in reader.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+        except Exception as e:
+            print(f"Error reading PDF {pdf.name}: {e}")
+            continue
     return text
 
 
 # -------- TEXT CHUNKING --------
 def get_text_chunks(text):
-
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200
     )
-
     return splitter.split_text(text)
 
 
 # -------- VECTOR STORE --------
-def create_vector_store(chunks):
-
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/gemini-embedding-001"
-    )
-
-    db = FAISS.from_texts(chunks, embeddings)
-
-    db.save_local("faiss_index")
-
-
-# -------- LOAD VECTOR STORE --------
-def load_vector_store():
-
-    embeddings = GoogleGenerativeAIEmbeddings(
-        model="models/gemini-embedding-001"
-    )
-
-    db = FAISS.load_local(
-        "faiss_index",
-        embeddings,
-        allow_dangerous_deserialization=True
-    )
-
-    return db
+def create_vector_store(chunks, user_id=None):
+    """Create user-specific vector store using Gemini embeddings"""
+    try:
+        # Use the correct embedding model from your API
+        embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/gemini-embedding-001",  # This is available in your API
+            google_api_key=GOOGLE_API_KEY
+        )
+        
+        db = FAISS.from_texts(chunks, embeddings)
+        
+        # Save user-specific index
+        index_name = f"faiss_index_{user_id}" if user_id else "faiss_index"
+        db.save_local(index_name)
+        print(f"Vector store created successfully: {index_name}")
+        return db
+        
+    except Exception as e:
+        print(f"Error creating vector store: {e}")
+        raise Exception(f"Failed to create vector store: {str(e)}")
 
 
-# -------- LLM --------
+def load_vector_store(user_id=None):
+    """Load user-specific vector store"""
+    try:
+        embeddings = GoogleGenerativeAIEmbeddings(
+            model="models/gemini-embedding-001",  # Use the same model
+            google_api_key=GOOGLE_API_KEY
+        )
+        
+        index_name = f"faiss_index_{user_id}" if user_id else "faiss_index"
+        
+        if not os.path.exists(index_name):
+            raise FileNotFoundError(f"Vector store {index_name} not found. Please upload PDFs first.")
+        
+        db = FAISS.load_local(
+            index_name,
+            embeddings,
+            allow_dangerous_deserialization=True
+        )
+        print(f"Vector store loaded successfully: {index_name}")
+        return db
+        
+    except Exception as e:
+        print(f"Error loading vector store: {e}")
+        raise Exception(f"Failed to load vector store: {str(e)}")
+
+
+# -------- LLM (Gemini 2.5 Flash) --------
 def get_llm():
-
+    """Get the Gemini LLM - using Gemini 2.5 Flash"""
     return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        temperature=0.3
+        model="gemini-2.5-flash",  # You have this model available
+        temperature=0.3,
+        google_api_key=GOOGLE_API_KEY
     )
 
 
-# -------- MCQ GENERATION --------
-def generate_mcq(context, question):
-
+# -------- MCQ GENERATION WITH JSON OUTPUT --------
+def generate_mcq_json(context, mcq_count):
+    """Generate MCQs in JSON format from the provided context"""
+    
     prompt = PromptTemplate.from_template(
         """
-you are a helpful assistant for creating a mcqs from the provided context.
-        You are a helpful assistant for creating MCQs from the provided context.
+You are an expert at creating high-quality multiple-choice questions (MCQs) from given content.
 
-        Provide 4 options for the question and mark the correct answer using (*).
+Based on the provided context, generate EXACTLY {mcq_count} multiple-choice questions.
+
+IMPORTANT RULES:
+1. Respond with ONLY valid JSON
+2. No markdown formatting, no additional text, no explanations outside JSON
+3. Each question must have exactly 4 options (A, B, C, D)
+4. Only ONE correct answer per question
+5. Mark the correct answer with its letter (A, B, C, or D)
+
+The JSON structure MUST be exactly like this:
+{{
+    "mcqs": [
+        {{
+            "question_number": 1,
+            "question_text": "What is the main topic discussed?",
+            "options": {{
+                "A": "First option",
+                "B": "Second option", 
+                "C": "Third option",
+                "D": "Fourth option"
+            }},
+            "correct_answer": "B",
+            "explanation": "Brief explanation why B is correct"
+        }}
+    ]
+}}
 
 Context:
 {context}
 
-Question:
-{question}
-
-Answer:
+Generate {mcq_count} MCQs in JSON format:
 """
     )
 
     chain = prompt | get_llm() | StrOutputParser()
+    
+    try:
+        result = chain.invoke({
+            "context": context,
+            "mcq_count": mcq_count
+        })
+        
+        print(f"Raw LLM response length: {len(result)}")
+        
+        # Clean the response
+        result = clean_json_response(result)
+        return result
+        
+    except Exception as e:
+        print(f"Error generating MCQs: {e}")
+        raise Exception(f"Failed to generate MCQs: {str(e)}")
 
-    return chain.invoke({
-        "context": context,
-        "question": question
-    })
+
+def clean_json_response(response):
+    """Clean LLM response to extract valid JSON"""
+    # Remove markdown code blocks
+    response = re.sub(r'```json\s*', '', response)
+    response = re.sub(r'```\s*', '', response)
+    response = re.sub(r'`json\s*', '', response)
+    
+    # Remove any leading/trailing whitespace
+    response = response.strip()
+    
+    # Find JSON content - look for object
+    json_match = re.search(r'(\{.*\})', response, re.DOTALL)
+    if json_match:
+        response = json_match.group(1)
+    
+    # Try to fix common JSON issues
+    response = re.sub(r',\s*}', '}', response)
+    response = re.sub(r',\s*]', ']', response)
+    
+    return response
+
+
+def parse_json_mcqs(json_response):
+    """Parse JSON response into structured MCQ list"""
+    try:
+        # Try to parse JSON
+        data = json.loads(json_response)
+        
+        # Handle different possible structures
+        if 'mcqs' in data:
+            mcqs_data = data['mcqs']
+        elif isinstance(data, list):
+            mcqs_data = data
+        else:
+            mcqs_data = [data] if data else []
+        
+        if not mcqs_data:
+            print("No MCQs found in JSON")
+            return []
+        
+        mcqs = []
+        for idx, item in enumerate(mcqs_data):
+            try:
+                options = item.get('options', {})
+                
+                # Ensure all options exist
+                options_list = []
+                for letter in ['A', 'B', 'C', 'D']:
+                    option_text = options.get(letter, '')
+                    if not option_text:
+                        option_text = options.get(letter.lower(), '')
+                    options_list.append({
+                        'letter': letter,
+                        'text': option_text if option_text else f"Option {letter}",
+                        'is_correct': item.get('correct_answer', '').upper() == letter
+                    })
+                
+                correct_letter = item.get('correct_answer', 'A').upper()
+                # Find correct option text
+                correct_text = ""
+                for opt in options_list:
+                    if opt['letter'] == correct_letter:
+                        correct_text = opt['text']
+                        break
+                
+                mcq = {
+                    'number': item.get('question_number', idx + 1),
+                    'question': item.get('question_text', item.get('question', 'Question not available')),
+                    'options': options_list,
+                    'correct_answer': f"{correct_letter}) {correct_text}",
+                    'correct_letter': correct_letter,
+                    'explanation': item.get('explanation', 'No explanation provided')
+                }
+                mcqs.append(mcq)
+                
+            except Exception as e:
+                print(f"Error parsing MCQ {idx}: {e}")
+                continue
+        
+        print(f"Successfully parsed {len(mcqs)} MCQs")
+        return mcqs
+        
+    except json.JSONDecodeError as e:
+        print(f"JSON Parse Error: {e}")
+        print(f"Raw response first 500 chars: {json_response[:500]}")
+        return []
 
 
 # -------- QUERY FUNCTION --------
-def ask_question(question):
-
-    db = load_vector_store()
-
-    docs = db.similarity_search(question, k=4)
-
-    print("DOCS FOUND:", len(docs))
-
-    context = "\n\n".join(doc.page_content for doc in docs)
-
-    print("CONTEXT LENGTH:", len(context))
-
-    answer = generate_mcq(context, question)
-
-    print("LLM ANSWER:", answer)
-
-    return answer
-
-
-
-
-# import os
-# from dotenv import load_dotenv
-
-# from pypdf import PdfReader
-# from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-# from langchain_google_genai import (
-#     GoogleGenerativeAIEmbeddings,
-#     ChatGoogleGenerativeAI
-# )
-
-# from langchain_community.vectorstores import FAISS
-# from langchain_core.prompts import PromptTemplate
-# from langchain_core.output_parsers import StrOutputParser
-
-# # -------- LOAD ENV --------
-# load_dotenv()
-# GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
-# # -------- PDF TEXT EXTRACTION --------
-# def get_pdf_text(pdf_files):
-#     text = ""
-
-#     for pdf in pdf_files:
-#         reader = PdfReader(pdf)
-
-#         for page in reader.pages:
-#             page_text = page.extract_text()
-
-#             if page_text:
-#                 text += page_text + "\n"
-
-#     return text
-
-
-# # -------- TEXT CHUNKING --------
-# def get_text_chunks(text):
-#     splitter = RecursiveCharacterTextSplitter(
-#         chunk_size=1000,
-#         chunk_overlap=200
-#     )
-
-#     return splitter.split_text(text)
-
-
-# # -------- VECTOR STORE --------
-# def create_vector_store(chunks):
-
-#     embeddings = GoogleGenerativeAIEmbeddings(
-#         model="models/embedding-001"   # ✅ FIXED MODEL NAME
-#     )
-
-#     db = FAISS.from_texts(chunks, embeddings)
-#     db.save_local("faiss_index")
-
-
-# # -------- LOAD VECTOR STORE --------
-# def load_vector_store():
-
-#     embeddings = GoogleGenerativeAIEmbeddings(
-#         model="models/embedding-001"
-#     )
-
-#     db = FAISS.load_local(
-#         "faiss_index",
-#         embeddings,
-#         allow_dangerous_deserialization=True
-#     )
-
-#     return db
-
-
-# # -------- LLM --------
-# def get_llm():
-#     return ChatGoogleGenerativeAI(
-#         model="gemini-1.5-flash",   # ✅ stable model
-#         temperature=0.3
-#     )
-
-
-# # -------- MCQ GENERATION --------
-# def generate_mcq(context, question):
-
-#     prompt = PromptTemplate.from_template(
-#         """
-# You are a helpful assistant for creating MCQs.
-
-# Create:
-# - 4 options
-# - Mark correct answer with (*)
-
-# Only use given context.
-# If not enough info → say "more information is needed".
-
-# Context:
-# {context}
-
-# Question:
-# {question}
-
-# Answer:
-# """
-#     )
-
-#     chain = prompt | get_llm() | StrOutputParser()
-
-#     return chain.invoke({
-#         "context": context,
-#         "question": question
-#     })
-
-
-# # -------- QUERY FUNCTION --------
-# def ask_question(question):
-
-#     db = load_vector_store()
-
-#     docs = db.similarity_search(question, k=4)
-
-#     context = "\n\n".join(doc.page_content for doc in docs)
-
-#     answer = generate_mcq(context, question)
-
-#     return answer
-
-
-
-
-
-
-
-# import os
-# import requests
-# import json
-# from dotenv import load_dotenv
-# from pypdf import PdfReader
-
-# load_dotenv()
-
-# GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-
-# # -------- PDF TEXT EXTRACTION --------
-# def get_pdf_text(pdf_files):
-#     """Extract text from PDF files"""
-#     text = ""
-#     for pdf in pdf_files:
-#         reader = PdfReader(pdf)
-#         for page in reader.pages:
-#             page_text = page.extract_text()
-#             if page_text:
-#                 text += page_text + "\n"
-#     return text
-
-
-# # -------- TEXT CHUNKING --------
-# def get_text_chunks(text):
-#     """Split text into chunks (simple version without LangChain)"""
-#     # Simple chunking: split by paragraphs, then combine up to ~1000 chars
-#     paragraphs = text.split('\n\n')
-#     chunks = []
-#     current_chunk = ""
-    
-#     for para in paragraphs:
-#         if len(current_chunk) + len(para) < 1000:
-#             current_chunk += para + "\n\n"
-#         else:
-#             if current_chunk:
-#                 chunks.append(current_chunk.strip())
-#             current_chunk = para + "\n\n"
-    
-#     if current_chunk:
-#         chunks.append(current_chunk.strip())
-    
-#     # If no chunks created (text too small), use the whole text
-#     if not chunks and text.strip():
-#         chunks = [text.strip()]
-    
-#     return chunks
-
-
-# # -------- CREATE VECTOR STORE (Simplified - just returns chunks) --------
-# def create_vector_store(chunks):
-#     """Store chunks for later retrieval (simplified version)"""
-#     # In a simple version, we just save chunks to session
-#     # For now, this just returns the chunks
-#     return chunks
-
-
-# # -------- ASK QUESTION USING GEMINI API --------
-# def ask_question(question):
-#     """Generate MCQs using Gemini API directly"""
-    
-#     prompt = f"""Generate multiple choice questions based on general knowledge.
-    
-# Topic: {question}
-
-# Please generate 5-10 multiple choice questions with the following format:
-# 1. Question text here?
-# A) First option
-# B) Second option
-# C) Third option
-# D) Fourth option (*)
-
-# Mark the correct answer with (*). Include an explanation after each question.
-
-# Questions:
-# """
-    
-#     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={GOOGLE_API_KEY}"
-    
-#     payload = {
-#         "contents": [{
-#             "parts": [{"text": prompt}]
-#         }]
-#     }
-    
-#     headers = {
-#         "Content-Type": "application/json"
-#     }
-    
-#     try:
-#         response = requests.post(url, json=payload, headers=headers)
+def ask_question_json(question, mcq_count, user_id=None):
+    """Generate MCQs in JSON format with user-specific vector store"""
+    try:
+        # First check if API key is configured
+        if not GOOGLE_API_KEY:
+            raise Exception("GOOGLE_API_KEY not found. Please check your .env file.")
         
-#         if response.status_code == 200:
-#             data = response.json()
-#             if 'candidates' in data and len(data['candidates']) > 0:
-#                 return data['candidates'][0]['content']['parts'][0]['text']
-#             else:
-#                 return "Error: No response from API"
-#         else:
-#             return f"Error: API returned {response.status_code}"
-#     except Exception as e:
-#         return f"Error: {str(e)}"
+        print(f"Loading vector store for user {user_id}...")
+        db = load_vector_store(user_id=user_id)
+        
+        print(f"Searching for relevant content...")
+        docs = db.similarity_search(question, k=6)
+        context = "\n\n".join(doc.page_content for doc in docs)
+        
+        if not context or len(context.strip()) < 100:
+            raise Exception("Not enough content in PDFs to generate questions. Please upload PDFs with more content.")
+        
+        print(f"Context length: {len(context)} characters")
+        print(f"Generating {mcq_count} MCQs...")
+        
+        json_response = generate_mcq_json(context, mcq_count)
+        mcqs = parse_json_mcqs(json_response)
+        
+        if not mcqs:
+            raise Exception("Failed to parse MCQs from LLM response. Please try again.")
+        
+        print(f"Successfully generated {len(mcqs)} MCQs")
+        
+        return {
+            'raw_response': json_response,
+            'mcqs': mcqs,
+            'mcq_count': len(mcqs)
+        }
+        
+    except FileNotFoundError as e:
+        raise Exception("Please upload and process PDFs first before generating MCQs.")
+    except Exception as e:
+        print(f"Error in ask_question_json: {e}")
+        raise
