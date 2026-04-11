@@ -234,7 +234,7 @@
             <div class="test-container" id="testContainer">
                 {% for mcq in current_mcqs %}
                 <div class="question-card" id="mcq-{{ forloop.counter }}" data-question-id="{{ mcq.number }}" 
-                    data-correct="{{ mcq.correct_letter }}" data-question-db-id="{{ mcq.id }}">
+                    data-correct="{{ mcq.correct_letter }}" data-question-db-id="{{ mcq.id }}" data-topic="{{ mcq.topic }}">
                     
                     <div class="question-header">
                         <span class="question-number">Question {{ mcq.number }}.</span>
@@ -439,6 +439,31 @@
     </div>
 </div>
 
+<!-- Generate By Topic Modal -->
+<div class="generate-by-topic-modal" id="generateByTopicModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-brain"></i> Generate MCQs by Topic</h3>
+            <button class="modal-close" onclick="closeGenerateByTopicModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <p>Generate more questions specifically about: <strong id="topicToGenerate"></strong></p>
+            <div class="input-wrapper">
+                <label for="mcqCountByTopic">Number of MCQs:</label>
+                <input type="number" id="mcqCountByTopic" value="5" min="1" max="100">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-generate" onclick="generateMcqsForTopic()">
+                <i class="fas fa-magic"></i> Generate
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block js %}
 <script>
 // Track user answers and session
 let userAnswers = {};
@@ -452,24 +477,15 @@ const selectedFilesDiv = document.getElementById('selectedFiles');
 const dropZone = document.getElementById('dropZone');
 const pdfColors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
 
-// File input change event
-if (pdfInput) {
-    pdfInput.addEventListener('change', function(e) {
-        const files = e.target.files;
-        const fileCount = files.length;
-        
-        if (fileCount > 0) {
-            fileCountSpan.textContent = fileCount + ' file(s) selected';
-            displaySelectedFiles(files);
-        } else {
-            fileCountSpan.textContent = 'Choose PDF files';
-            selectedFilesDiv.innerHTML = '';
-        }
-    });
-}
-
+// Global functions (accessible from HTML attributes and other scripts)
 function displaySelectedFiles(files) {
+    console.log('displaySelectedFiles called with:', files);
     selectedFilesDiv.innerHTML = '<div class="selected-files-header"><i class="fas fa-file-pdf"></i> Selected Files:</div>';
+    
+    if (files.length === 0) {
+        selectedFilesDiv.innerHTML += '<p>No files to display.</p>';
+        return;
+    }
     
     for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -482,109 +498,14 @@ function displaySelectedFiles(files) {
             <i class="fas fa-check-circle file-check"></i>
         `;
         selectedFilesDiv.appendChild(fileItem);
+        console.log('Appended file item:', file.name);
     }
 }
 
-// Drag and drop
-if (dropZone) {
-    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, preventDefaults, false);
-    });
-    
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-    
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => dropZone.classList.add('highlight'), false);
-    });
-    
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => dropZone.classList.remove('highlight'), false);
-    });
-    
-    dropZone.addEventListener('drop', function(e) {
-        const dt = e.dataTransfer;
-        const files = [...dt.files].filter(f => f.type === 'application/pdf');
-        
-        if (files.length) {
-            pdfInput.files = (function() {
-                const dt = new DataTransfer();
-                files.forEach(f => dt.items.add(f));
-                return dt.files;
-            })();
-            pdfInput.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-    });
+function preventDefaults(e) {
+    e.preventDefault();
+    e.stopPropagation();
 }
-
-// ==================== MCQ NUMBER VALIDATION ====================
-const mcqCountInput = document.getElementById('mcqCountInput');
-
-if (mcqCountInput) {
-    // Remove default value handling on page load - let the HTML default be 10
-    // But don't force it on every keystroke
-    
-    // Handle input events - only validate, don't auto-fill
-    mcqCountInput.addEventListener('input', function(e) {
-        let rawValue = this.value;
-        
-        // Allow empty value temporarily while user is typing
-        if (rawValue === '' || rawValue === null) {
-            return; // Don't do anything, let user type
-        }
-        
-        let value = parseInt(rawValue);
-        
-        // Only validate if it's a valid number
-        if (!isNaN(value)) {
-            if (value < 1) {
-                this.value = 1;
-                showNotification('Minimum value is 1', 'warning');
-            } else if (value > 100) {
-                this.value = 100;
-                showNotification('Maximum value is 100', 'warning');
-            }
-        }
-    });
-    
-    // Handle blur event (when user leaves the field)
-    mcqCountInput.addEventListener('blur', function(e) {
-        let rawValue = this.value;
-        
-        // If empty or invalid, set to default 10
-        if (rawValue === '' || rawValue === null) {
-            this.value = 10;
-            return;
-        }
-        
-        let value = parseInt(rawValue);
-        if (isNaN(value) || value < 1) {
-            this.value = 10;
-            showNotification('Invalid value. Set to 10', 'warning');
-        } else if (value > 100) {
-            this.value = 100;
-            showNotification('Maximum value is 100', 'warning');
-        }
-    });
-    
-    // Allow manual deletion of all characters
-    mcqCountInput.addEventListener('keydown', function(e) {
-        // Allow backspace, delete, arrow keys, etc.
-        const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Tab'];
-        if (allowedKeys.includes(e.key)) {
-            return; // Let these keys work normally
-        }
-        
-        // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
-        if (e.ctrlKey && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) {
-            return;
-        }
-    });
-}
-
-// ==================== TEST FUNCTIONALITY ====================
 
 function initializeTest() {
     const totalQuestions = document.querySelectorAll('.question-card').length;
@@ -685,6 +606,7 @@ function submitTest() {
         const questionCard = document.getElementById(`mcq-${i}`);
         const correctAnswer = questionCard?.dataset.correct?.charAt(0).toUpperCase() || '';
         const userAnswer = userAnswers[i]?.charAt(0).toUpperCase() || null;
+        const topic = questionCard?.dataset.topic || 'Concept Understanding';
         
         const isCorrect = (userAnswer && userAnswer === correctAnswer);
         
@@ -714,7 +636,8 @@ function submitTest() {
             correctAnswer: correctAnswer,
             correctFullText: correctFullText,
             isCorrect: isCorrect,
-            isAnswered: userAnswer !== null
+            isAnswered: userAnswer !== null,
+            topic: topic
         });
     }
     
@@ -810,6 +733,11 @@ function showResultsModal(results) {
                 `${item.userAnswer}) ${item.userFullText}` : 'Not answered';
             const correctDisplay = `${item.correctAnswer}) ${item.correctFullText}`;
             
+            let topicHtml = '';
+            if (!item.isCorrect && item.topic && item.topic !== 'Concept Understanding') {
+                topicHtml = `<div class="breakdown-topic">Topic: <span class="topic-tag" onclick="openGenerateByTopicModal('${item.topic}')">${item.topic}</span></div>`;
+            }
+
             breakdownItem.innerHTML = `
                 <div class="breakdown-header">
                     <span class="breakdown-question">Question ${item.question}</span>
@@ -824,6 +752,7 @@ function showResultsModal(results) {
                         <span class="label">Correct:</span>
                         <span class="correct-text">${correctDisplay}</span>
                     </div>
+                    ${topicHtml}
                 </div>
             `;
             breakdownList.appendChild(breakdownItem);
@@ -893,25 +822,179 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-// Form submission handlers
-document.getElementById('uploadForm')?.addEventListener('submit', function(e) {
-    const files = document.getElementById('pdfFiles').files;
-    if (files.length === 0) {
-        e.preventDefault();
-        alert('Please select at least one PDF file');
+let currentTopic = ''; // To store the topic when the modal is opened
+
+function openGenerateByTopicModal(topic) {
+    currentTopic = topic;
+    document.getElementById('topicToGenerate').textContent = topic;
+    document.getElementById('generateByTopicModal').style.display = 'flex';
+}
+
+function closeGenerateByTopicModal() {
+    document.getElementById('generateByTopicModal').style.display = 'none';
+}
+
+function generateMcqsForTopic() {
+    const mcqCount = document.getElementById('mcqCountByTopic').value;
+    if (mcqCount < 1 || mcqCount > 100) {
+        showNotification('Please enter a number between 1 and 100.', 'warning');
         return;
     }
-    document.getElementById('processBtn')?.classList.add('loading');
-});
 
-document.getElementById('questionForm')?.addEventListener('submit', function() {
-    document.getElementById('generateBtn')?.classList.add('loading');
-});
+    // AJAX call to the new Django view
+    fetch("{% url 'pdf_mcq:generate_by_topic' %}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify({
+            topic: currentTopic,
+            mcq_count: mcqCount
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            showNotification(`Generated ${data.mcq_count} MCQs for topic "${currentTopic}"!`, 'success');
+            closeGenerateByTopicModal();
+            // Optionally, redirect to the new session or update the current view
+            window.location.href = `/pdf_mcq/?session_id=${data.session_id}`;
+        } else {
+            showNotification('Error generating MCQs by topic: ' + data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error generating MCQs by topic:', error);
+        showNotification('Error generating MCQs by topic. Please try again.', 'error');
+    });
+}
 
-// Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
+    // File input change event
+    if (pdfInput) {
+        pdfInput.addEventListener('change', function(e) {
+            console.log('PDF input change event fired.');
+            const files = e.target.files;
+            const fileCount = files.length;
+            
+            if (fileCount > 0) {
+                fileCountSpan.textContent = fileCount + ' file(s) selected';
+                console.log('Files selected:', files);
+                displaySelectedFiles(files);
+            } else {
+                fileCountSpan.textContent = 'Choose PDF files';
+                selectedFilesDiv.innerHTML = '';
+                console.log('No files selected.');
+            }
+        });
+    }
+
+    // Drag and drop
+    if (dropZone) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+        });
+        
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('highlight'), false);
+        });
+        
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('highlight'), false);
+        });
+        
+        dropZone.addEventListener('drop', function(e) {
+            const dt = e.dataTransfer;
+            const files = [...dt.files].filter(f => f.type === 'application/pdf');
+            
+            if (files.length) {
+                pdfInput.files = (function() {
+                    const dt = new DataTransfer();
+                    files.forEach(f => dt.items.add(f));
+                    return dt.files;
+                })();
+                pdfInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+    }
+
+    const mcqCountInput = document.getElementById('mcqCountInput');
+    if (mcqCountInput) {
+        // Handle input events - only validate, don't auto-fill
+        mcqCountInput.addEventListener('input', function(e) {
+            let rawValue = this.value;
+            
+            // Allow empty value temporarily while user is typing
+            if (rawValue === '' || rawValue === null) {
+                return; // Don't do anything, let user type
+            }
+            
+            let value = parseInt(rawValue);
+            
+            // Only validate if it's a valid number
+            if (!isNaN(value)) {
+                if (value < 1) {
+                    this.value = 1;
+                    showNotification('Minimum value is 1', 'warning');
+                } else if (value > 100) {
+                    this.value = 100;
+                    showNotification('Maximum value is 100', 'warning');
+                }
+            }
+        });
+        
+        // Handle blur event (when user leaves the field)
+        mcqCountInput.addEventListener('blur', function(e) {
+            let rawValue = this.value;
+            
+            // If empty or invalid, set to default 10
+            if (rawValue === '' || rawValue === null) {
+                this.value = 10;
+                return;
+            }
+            
+            let value = parseInt(rawValue);
+            if (isNaN(value) || value < 1) {
+                this.value = 10;
+                showNotification('Invalid value. Set to 10', 'warning');
+            } else if (value > 100) {
+                this.value = 100;
+                showNotification('Maximum value is 100', 'warning');
+            }
+        });
+        
+        // Allow manual deletion of all characters
+        mcqCountInput.addEventListener('keydown', function(e) {
+            // Allow backspace, delete, arrow keys, etc.
+            const allowedKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Tab'];
+            if (allowedKeys.includes(e.key)) {
+                return; // Let these keys work normally
+            }
+            
+            // Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+            if (e.ctrlKey && ['a', 'c', 'v', 'x'].includes(e.key.toLowerCase())) {
+                return;
+            }
+        });
+    }
+
+    // Form submission handlers
+    document.getElementById('uploadForm')?.addEventListener('submit', function(e) {
+        const files = document.getElementById('pdfFiles').files;
+        if (files.length === 0) {
+            e.preventDefault();
+            alert('Please select at least one PDF file');
+            return;
+        }
+        document.getElementById('processBtn')?.classList.add('loading');
+    });
+
+    document.getElementById('questionForm')?.addEventListener('submit', function() {
+        document.getElementById('generateBtn')?.classList.add('loading');
+    });
+
     initializeTest();
 });
 </script>
-
 {% endblock %}

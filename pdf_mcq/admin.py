@@ -14,9 +14,9 @@ class MCQSessionAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at',)
 
 class MCQQuestionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'question_number', 'user', 'session', 'question_text_short', 'correct_answer', 'created_at')
-    list_filter = ('user', 'session', 'correct_answer', 'created_at')
-    search_fields = ('question_text', 'user__username')
+    list_display = ('id', 'question_number', 'question_text_short', 'session', 'user', 'correct_answer', 'topic', 'created_at')
+    list_filter = ('user', 'session', 'topic', 'created_at')
+    search_fields = ('question_text', 'topic')
     readonly_fields = ('created_at',)
     
     def question_text_short(self, obj):

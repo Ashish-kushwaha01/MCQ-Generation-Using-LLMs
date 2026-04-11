@@ -37,6 +37,7 @@ class MCQQuestion(models.Model):
     option_d = models.TextField()
     correct_answer = models.CharField(max_length=1)  # 'A', 'B', 'C', or 'D'
     explanation = models.TextField(blank=True, null=True)
+    topic = models.CharField(max_length=255, blank=True, null=True) # New field for MCQ topic
     created_at = models.DateTimeField(default=timezone.now)
     
     def get_options_dict(self):

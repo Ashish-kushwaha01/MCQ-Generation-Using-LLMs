@@ -60,7 +60,7 @@ def create_vector_store(chunks, user_id=None):
     try:
         # Use the correct embedding model from your API
         embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/gemini-embedding-001",  # This is available in your API
+            model="gemini-embedding-001",  # This is available in your API
             google_api_key=GOOGLE_API_KEY
         )
         
@@ -114,14 +114,23 @@ def get_llm():
 
 
 # -------- MCQ GENERATION WITH JSON OUTPUT --------
-def generate_mcq_json(context, mcq_count):
+def generate_mcq_json(context, mcq_count, specific_topic=None):
     """Generate MCQs in JSON format from the provided context"""
+    
+    topic_instruction = ""
+    if specific_topic:
+        topic_instruction = f"""
+IMPORTANT: Generate all questions specifically about the topic: "{specific_topic}"
+The topic for EACH question MUST be "{specific_topic}".
+"""
     
     prompt = PromptTemplate.from_template(
         """
 You are an expert at creating high-quality multiple-choice questions (MCQs) from given content.
 
-Based on the provided context, generate EXACTLY {mcq_count} multiple-choice questions.
+Generate EXACTLY {mcq_count} multiple-choice questions.
+
+{topic_instruction}
 
 IMPORTANT RULES:
 1. Respond with ONLY valid JSON
@@ -129,6 +138,8 @@ IMPORTANT RULES:
 3. Each question must have exactly 4 options (A, B, C, D)
 4. Only ONE correct answer per question
 5. Mark the correct answer with its letter (A, B, C, or D)
+6. For EVERY question, provide a SPECIFIC topic name based on what the question is testing
+7. NEVER use "General" as a topic - this is FORBIDDEN
 
 The JSON structure MUST be exactly like this:
 {{
@@ -143,7 +154,8 @@ The JSON structure MUST be exactly like this:
                 "D": "Fourth option"
             }},
             "correct_answer": "B",
-            "explanation": "Brief explanation why B is correct"
+            "explanation": "Brief explanation why B is correct",
+            "topic": "SPECIFIC CONCEPT NAME"
         }}
     ]
 }}
@@ -151,7 +163,7 @@ The JSON structure MUST be exactly like this:
 Context:
 {context}
 
-Generate {mcq_count} MCQs in JSON format:
+Generate {mcq_count} MCQs. REMEMBER: Each question MUST have a SPECIFIC topic (NOT 'General'):
 """
     )
 
@@ -160,7 +172,8 @@ Generate {mcq_count} MCQs in JSON format:
     try:
         result = chain.invoke({
             "context": context,
-            "mcq_count": mcq_count
+            "mcq_count": mcq_count,
+            "topic_instruction": topic_instruction
         })
         
         print(f"Raw LLM response length: {len(result)}")
@@ -238,6 +251,8 @@ def parse_json_mcqs(json_response):
                     if opt['letter'] == correct_letter:
                         correct_text = opt['text']
                         break
+
+                topic = item.get('topic', 'Concept Understanding') # Fixed: Provide a default string if 'topic' is not found
                 
                 mcq = {
                     'number': item.get('question_number', idx + 1),
@@ -245,7 +260,8 @@ def parse_json_mcqs(json_response):
                     'options': options_list,
                     'correct_answer': f"{correct_letter}) {correct_text}",
                     'correct_letter': correct_letter,
-                    'explanation': item.get('explanation', 'No explanation provided')
+                    'explanation': item.get('explanation', 'No explanation provided'),
+                    'topic': topic if topic and topic.lower() != 'general' else "Concept Understanding"
                 }
                 mcqs.append(mcq)
                 
@@ -258,12 +274,12 @@ def parse_json_mcqs(json_response):
         
     except json.JSONDecodeError as e:
         print(f"JSON Parse Error: {e}")
-        print(f"Raw response first 500 chars: {json_response[:500]}")
+        print(f"Raw response from LLM: {json_response}") # Print full raw response
         return []
 
 
 # -------- QUERY FUNCTION --------
-def ask_question_json(question, mcq_count, user_id=None):
+def ask_question_json(question, mcq_count, user_id=None, specific_topic=None):
     """Generate MCQs in JSON format with user-specific vector store"""
     try:
         # First check if API key is configured
@@ -273,8 +289,10 @@ def ask_question_json(question, mcq_count, user_id=None):
         print(f"Loading vector store for user {user_id}...")
         db = load_vector_store(user_id=user_id)
         
-        print(f"Searching for relevant content...")
-        docs = db.similarity_search(question, k=6)
+        # Search for relevant content
+        search_query = specific_topic if specific_topic else question
+        print(f"Searching for content related to: {search_query}")
+        docs = db.similarity_search(search_query, k=6)
         context = "\n\n".join(doc.page_content for doc in docs)
         
         if not context or len(context.strip()) < 100:
@@ -283,11 +301,16 @@ def ask_question_json(question, mcq_count, user_id=None):
         print(f"Context length: {len(context)} characters")
         print(f"Generating {mcq_count} MCQs...")
         
-        json_response = generate_mcq_json(context, mcq_count)
+        json_response = generate_mcq_json(context, mcq_count, specific_topic)
         mcqs = parse_json_mcqs(json_response)
         
         if not mcqs:
             raise Exception("Failed to parse MCQs from LLM response. Please try again.")
+        
+        # Ensure all MCQs have proper topics
+        for mcq in mcqs:
+            if not mcq['topic'] or mcq['topic'].lower() == 'general':
+                mcq['topic'] = extract_topic_from_question(mcq['question'])
         
         print(f"Successfully generated {len(mcqs)} MCQs")
         

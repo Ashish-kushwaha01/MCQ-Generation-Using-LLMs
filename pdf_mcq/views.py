@@ -8,6 +8,8 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
 from .pdf_logic import (
     get_pdf_text,
@@ -271,10 +273,14 @@ def get_session_results(request, session_id):
     
     try:
         session = MCQSession.objects.get(session_id=session_id, user=user)
-        questions = MCQQuestion.objects.filter(session=session, user=user)
+        questions = MCQQuestion.objects.filter(session=session, user=user).order_by('question_number')
         
         results = []
         correct_count = 0
+        incorrect_count = 0
+        unanswered_count = 0
+        
+        incorrect_topics = {}
         
         for question in questions:
             try:
@@ -282,26 +288,316 @@ def get_session_results(request, session_id):
                 is_correct = user_answer.is_correct
                 if is_correct:
                     correct_count += 1
+                else:
+                    incorrect_count += 1
+                    topic = question.topic or 'Concept'
+                    if topic not in incorrect_topics:
+                        incorrect_topics[topic] = 0
+                    incorrect_topics[topic] += 1
             except UserAnswer.DoesNotExist:
+                unanswered_count += 1
                 user_answer = None
                 is_correct = False
+            
+            # Get option texts
+            options_list = question.to_json()['options']
+            correct_full_text = ""
+            user_full_text = ""
+            
+            for opt in options_list:
+                if opt['letter'] == question.correct_answer:
+                    correct_full_text = opt['text']
+                if user_answer and opt['letter'] == user_answer.selected_answer:
+                    user_full_text = opt['text']
             
             results.append({
                 'question_id': question.id,
                 'question_number': question.question_number,
                 'question_text': question.question_text,
                 'user_answer': user_answer.selected_answer if user_answer else None,
+                'user_full_text': user_full_text,
                 'correct_answer': question.correct_answer,
-                'is_correct': is_correct
+                'correct_full_text': correct_full_text,
+                'is_correct': is_correct,
+                'topic': question.topic or 'Concept'
             })
+        
+        incorrect_topics_list = [{'name': topic, 'count': count} for topic, count in incorrect_topics.items()]
         
         return JsonResponse({
             'status': 'success',
             'total': questions.count(),
             'correct': correct_count,
+            'incorrect': incorrect_count,
+            'unanswered': unanswered_count,
             'percentage': (correct_count / questions.count() * 100) if questions.count() > 0 else 0,
-            'results': results
+            'results': results,
+            'incorrect_topics': incorrect_topics_list
         })
         
     except MCQSession.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'Session not found'}, status=404)
+
+
+@login_required(login_url='account:login')
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_by_topic(request):
+    """Generate new MCQs based on selected topic"""
+    try:
+        user = request.user
+        data = json.loads(request.body)
+        
+        topic = data.get('topic')
+        mcq_count = data.get('mcq_count', 5)
+        
+        if not topic:
+            return JsonResponse({'status': 'error', 'message': 'No topic provided'}, status=400)
+        
+        print(f"Generating {mcq_count} questions about topic: {topic}")
+        
+        # Generate MCQs for specific topic
+        result = ask_question_json(
+            f"Generate questions about {topic}", 
+            mcq_count, 
+            user_id=user.id,
+            specific_topic=topic
+        )
+        
+        # Create new session
+        session_id = str(uuid.uuid4())[:8]
+        mcq_session = MCQSession.objects.create(
+            user=user,
+            session_id=session_id,
+            mcq_count=result['mcq_count']
+        )
+        
+        # Save questions
+        saved_questions = []
+        for mcq in result['mcqs']:
+            options = {opt['letter']: opt['text'] for opt in mcq['options']}
+            
+            question = MCQQuestion.objects.create(
+                session=mcq_session,
+                user=user,
+                question_number=mcq['number'],
+                question_text=mcq['question'],
+                option_a=options.get('A', ''),
+                option_b=options.get('B', ''),
+                option_c=options.get('C', ''),
+                option_d=options.get('D', ''),
+                correct_answer=mcq.get('correct_letter', 'A'),
+                explanation=mcq.get('explanation', ''),
+                topic=mcq.get('topic', topic)
+            )
+            saved_questions.append(question)
+        
+        return JsonResponse({
+            'status': 'success',
+            'session_id': session_id,
+            'mcqs': [q.to_json() for q in saved_questions],
+            'mcq_count': len(saved_questions),
+            'message': f'Generated {len(saved_questions)} questions about {topic}'
+        })
+        
+    except Exception as e:
+        print(f"Error generating by topic: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required(login_url='account:login')
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_by_topic(request):
+    """Generate new MCQs based on selected topic"""
+    try:
+        user = request.user
+        data = json.loads(request.body)
+        
+        topic = data.get('topic')
+        mcq_count = data.get('mcq_count', 5)
+        
+        if not topic:
+            return JsonResponse({'status': 'error', 'message': 'No topic provided'}, status=400)
+        
+        print(f"Generating {mcq_count} questions about topic: {topic}")
+        
+        # Generate MCQs for specific topic
+        result = ask_question_json(
+            f"Generate questions about {topic}", 
+            mcq_count, 
+            user_id=user.id,
+            specific_topic=topic
+        )
+        
+        # Create new session
+        session_id = str(uuid.uuid4())[:8]
+        mcq_session = MCQSession.objects.create(
+            user=user,
+            session_id=session_id,
+            mcq_count=result['mcq_count']
+        )
+        
+        # Save questions
+        saved_questions = []
+        for mcq in result['mcqs']:
+            options = {opt['letter']: opt['text'] for opt in mcq['options']}
+            
+            question = MCQQuestion.objects.create(
+                session=mcq_session,
+                user=user,
+                question_number=mcq['number'],
+                question_text=mcq['question'],
+                option_a=options.get('A', ''),
+                option_b=options.get('B', ''),
+                option_c=options.get('C', ''),
+                option_d=options.get('D', ''),
+                correct_answer=mcq.get('correct_letter', 'A'),
+                explanation=mcq.get('explanation', ''),
+                topic=mcq.get('topic', topic)
+            )
+            saved_questions.append(question)
+        
+        return JsonResponse({
+            'status': 'success',
+            'session_id': session_id,
+            'mcqs': [q.to_json() for q in saved_questions],
+            'mcq_count': len(saved_questions),
+            'message': f'Generated {len(saved_questions)} questions about {topic}'
+        })
+        
+    except Exception as e:
+        print(f"Error generating by topic: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required(login_url='account:login')
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_by_topic(request):
+    """Generate new MCQs based on selected topic"""
+    try:
+        user = request.user
+        data = json.loads(request.body)
+        
+        topic = data.get('topic')
+        mcq_count = data.get('mcq_count', 5)
+        
+        if not topic:
+            return JsonResponse({'status': 'error', 'message': 'No topic provided'}, status=400)
+        
+        print(f"Generating {mcq_count} questions about topic: {topic}")
+        
+        # Generate MCQs for specific topic
+        result = ask_question_json(
+            f"Generate questions about {topic}", 
+            mcq_count, 
+            user_id=user.id,
+            specific_topic=topic
+        )
+        
+        # Create new session
+        session_id = str(uuid.uuid4())[:8]
+        mcq_session = MCQSession.objects.create(
+            user=user,
+            session_id=session_id,
+            mcq_count=result['mcq_count']
+        )
+        
+        # Save questions
+        saved_questions = []
+        for mcq in result['mcqs']:
+            options = {opt['letter']: opt['text'] for opt in mcq['options']}
+            
+            question = MCQQuestion.objects.create(
+                session=mcq_session,
+                user=user,
+                question_number=mcq['number'],
+                question_text=mcq['question'],
+                option_a=options.get('A', ''),
+                option_b=options.get('B', ''),
+                option_c=options.get('C', ''),
+                option_d=options.get('D', ''),
+                correct_answer=mcq.get('correct_letter', 'A'),
+                explanation=mcq.get('explanation', ''),
+                topic=mcq.get('topic', topic)
+            )
+            saved_questions.append(question)
+        
+        return JsonResponse({
+            'status': 'success',
+            'session_id': session_id,
+            'mcqs': [q.to_json() for q in saved_questions],
+            'mcq_count': len(saved_questions),
+            'message': f'Generated {len(saved_questions)} questions about {topic}'
+        })
+        
+    except Exception as e:
+        print(f"Error generating by topic: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required(login_url='account:login')
+@csrf_exempt
+@require_http_methods(["POST"])
+def generate_by_topic(request):
+    """Generate new MCQs based on selected topic"""
+    try:
+        user = request.user
+        data = json.loads(request.body)
+        
+        topic = data.get('topic')
+        mcq_count = data.get('mcq_count', 5)
+        
+        if not topic:
+            return JsonResponse({'status': 'error', 'message': 'No topic provided'}, status=400)
+        
+        print(f"Generating {mcq_count} questions about topic: {topic}")
+        
+        # Generate MCQs for specific topic
+        result = ask_question_json(
+            f"Generate questions about {topic}", 
+            mcq_count, 
+            user_id=user.id,
+            specific_topic=topic
+        )
+        
+        # Create new session
+        session_id = str(uuid.uuid4())[:8]
+        mcq_session = MCQSession.objects.create(
+            user=user,
+            session_id=session_id,
+            mcq_count=result['mcq_count']
+        )
+        
+        # Save questions
+        saved_questions = []
+        for mcq in result['mcqs']:
+            options = {opt['letter']: opt['text'] for opt in mcq['options']}
+            
+            question = MCQQuestion.objects.create(
+                session=mcq_session,
+                user=user,
+                question_number=mcq['number'],
+                question_text=mcq['question'],
+                option_a=options.get('A', ''),
+                option_b=options.get('B', ''),
+                option_c=options.get('C', ''),
+                option_d=options.get('D', ''),
+                correct_answer=mcq.get('correct_letter', 'A'),
+                explanation=mcq.get('explanation', ''),
+                topic=mcq.get('topic', topic)
+            )
+            saved_questions.append(question)
+        
+        return JsonResponse({
+            'status': 'success',
+            'session_id': session_id,
+            'mcqs': [q.to_json() for q in saved_questions],
+            'mcq_count': len(saved_questions),
+            'message': f'Generated {len(saved_questions)} questions about {topic}'
+        })
+        
+    except Exception as e:
+        print(f"Error generating by topic: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
