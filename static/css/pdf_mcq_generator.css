@@ -409,19 +409,54 @@ body {
     background: white;
     border-radius: var(--radius-lg);
     width: 90%;
-    max-width: 600px;
-    max-height: 80vh;
-    overflow-y: auto;
+    max-width: 800px; /* Increased max-width */
+    max-height: 90vh; /* Increased max-height */
+    overflow: auto; /* Changed to auto for scrollbars when content overflows */
+    resize: both; /* Allow manual resizing */
+    min-width: 400px; /* Minimum width for resizing */
+    min-height: 300px; /* Minimum height for resizing */
     box-shadow: var(--shadow-lg);
     animation: slideUp 0.3s ease;
+}
+
+.results-modal.modal-fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1001; /* Ensure fullscreen modal is on top */
+    display: flex !important; /* Ensure it uses flexbox for centering content */
+    justify-content: center;
+    align-items: center;
+    animation: none !important;
+}
+
+.results-modal.modal-fullscreen .modal-content {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: 0;
+    resize: none; /* Disable manual resize in fullscreen */
+    display: flex;
+    flex-direction: column;
+    animation: none; /* Disable animation in fullscreen */
+    transform: none; /* Remove any transform in fullscreen */
+    margin: 0; /* Remove any margin in fullscreen */
+}
+
+.results-modal.modal-fullscreen .modal-body {
+    flex-grow: 1; /* Allow body to take remaining space */
+    overflow-y: auto; /* Enable scrolling for body content */
 }
 
 .modal-header {
     padding: 20px 25px;
     border-bottom: 1px solid var(--border);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
     background: var(--primary-light);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
@@ -433,10 +468,18 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-grow: 1;
 }
 
-.modal-close {
-    font-size: 28px;
+.modal-header-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px;
+}
+
+.modal-close,
+.modal-fullscreen-btn {
+    font-size: 20px;
     color: var(--gray);
     cursor: pointer;
     transition: var(--transition);
@@ -448,11 +491,18 @@ body {
     align-items: center;
     justify-content: center;
     border-radius: 50%;
+    z-index: 10;
+    flex-shrink: 0;
 }
 
-.modal-close:hover {
-    color: var(--danger);
-    background: var(--danger-light);
+.modal-close:hover,
+.modal-fullscreen-btn:hover {
+    color: var(--primary);
+    background: var(--primary-light);
+}
+
+.results-modal.modal-fullscreen {
+    z-index: 1001; /* Ensure fullscreen modal is on top */
 }
 
 .modal-body {

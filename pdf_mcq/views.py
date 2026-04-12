@@ -11,11 +11,15 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from collections import Counter
+
 from .pdf_logic import (
     get_pdf_text,
     get_text_chunks,
     create_vector_store,
-    ask_question_json
+    ask_question_json,
+    get_context,
+    get_weak_context
 )
 from .models import PDFDocument, MCQSession, MCQQuestion, UserAnswer
 
@@ -84,19 +88,20 @@ def pdf_mcq_view(request):
             
             try:
                 # Generate MCQs from PDF
-                result = ask_question_json("Generate comprehensive MCQs from this document", mcq_count, user_id=user.id)
+                llm_response = ask_question_json("Generate comprehensive MCQs from this document", mcq_count, user_id=user.id)
+                result_mcqs = llm_response['mcqs']
                 
                 # Create session
                 session_id = str(uuid.uuid4())[:8]
                 mcq_session = MCQSession.objects.create(
                     user=user,
                     session_id=session_id,
-                    mcq_count=result['mcq_count']
+                    mcq_count=llm_response['mcq_count']
                 )
                 
                 # Save questions to database
                 saved_questions = []
-                for mcq in result['mcqs']:
+                for mcq in result_mcqs:
                     options = {opt['letter']: opt['text'] for opt in mcq['options']}
                     
                     question = MCQQuestion.objects.create(
@@ -109,17 +114,18 @@ def pdf_mcq_view(request):
                         option_c=options.get('C', ''),
                         option_d=options.get('D', ''),
                         correct_answer=mcq.get('correct_letter', 'A'),
-                        explanation=mcq.get('explanation', '')
+                        explanation=mcq.get('explanation', ''),
+                        topic=mcq.get('topic', '') # Save the topic
                     )
                     saved_questions.append(question)
                 
-                messages.success(request, f"✅ Generated {result['mcq_count']} MCQs successfully!")
+                messages.success(request, f"✅ Generated {llm_response['mcq_count']} MCQs successfully!")
                 
                 # Prepare context for display
                 context.update({
                     "current_session": mcq_session,
                     "current_mcqs": [q.to_json() for q in saved_questions],
-                    "mcq_count": result['mcq_count'],
+                    "mcq_count": llm_response['mcq_count'],
                     "pdfs_processed": True,
                     "show_test": True
                 })
@@ -191,6 +197,7 @@ def pdf_mcq_view(request):
 
 @login_required(login_url='account:login')
 def clear_history(request):
+    """Clear all MCQ history for the user"""
     if request.method == "POST":
         # Delete all MCQ sessions and related data for the user
         MCQSession.objects.filter(user=request.user).delete()
@@ -265,7 +272,6 @@ def submit_answers(request):
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
 
 
-
 @login_required(login_url='account:login')
 def get_session_results(request, session_id):
     """Get results for a specific session"""
@@ -310,17 +316,22 @@ def get_session_results(request, session_id):
                 if user_answer and opt['letter'] == user_answer.selected_answer:
                     user_full_text = opt['text']
             
-            results.append({
-                'question_id': question.id,
-                'question_number': question.question_number,
-                'question_text': question.question_text,
-                'user_answer': user_answer.selected_answer if user_answer else None,
-                'user_full_text': user_full_text,
-                'correct_answer': question.correct_answer,
-                'correct_full_text': correct_full_text,
-                'is_correct': is_correct,
-                'topic': question.topic or 'Concept'
-            })
+                topic_to_send = question.topic
+                if not topic_to_send:
+                    topic_to_send = 'Topic Analysis Required'
+
+                results.append({
+                    'question_id': question.id,
+                    'question_number': question.question_number,
+                    'question_text': question.question_text,
+                    'user_answer': user_answer.selected_answer if user_answer else None,
+                    'user_full_text': user_full_text,
+                    'correct_answer': question.correct_answer,
+                    'correct_full_text': correct_full_text,
+                    'is_correct': is_correct,
+                    'topic': topic_to_send
+                })
+                print(f"DEBUG: Question {question.question_number}, Topic: '{topic_to_send}' (Type: {type(topic_to_send)}) | Original DB Topic: '{question.topic}' (Type: {type(question.topic)}) ")
         
         incorrect_topics_list = [{'name': topic, 'count': count} for topic, count in incorrect_topics.items()]
         
@@ -357,24 +368,25 @@ def generate_by_topic(request):
         print(f"Generating {mcq_count} questions about topic: {topic}")
         
         # Generate MCQs for specific topic
-        result = ask_question_json(
+        llm_response = ask_question_json(
             f"Generate questions about {topic}", 
             mcq_count, 
             user_id=user.id,
             specific_topic=topic
         )
+        result_mcqs = llm_response['mcqs']
         
         # Create new session
         session_id = str(uuid.uuid4())[:8]
         mcq_session = MCQSession.objects.create(
             user=user,
             session_id=session_id,
-            mcq_count=result['mcq_count']
+            mcq_count=llm_response['mcq_count']
         )
         
         # Save questions
         saved_questions = []
-        for mcq in result['mcqs']:
+        for mcq in result_mcqs:
             options = {opt['letter']: opt['text'] for opt in mcq['options']}
             
             question = MCQQuestion.objects.create(
@@ -388,205 +400,7 @@ def generate_by_topic(request):
                 option_d=options.get('D', ''),
                 correct_answer=mcq.get('correct_letter', 'A'),
                 explanation=mcq.get('explanation', ''),
-                topic=mcq.get('topic', topic)
-            )
-            saved_questions.append(question)
-        
-        return JsonResponse({
-            'status': 'success',
-            'session_id': session_id,
-            'mcqs': [q.to_json() for q in saved_questions],
-            'mcq_count': len(saved_questions),
-            'message': f'Generated {len(saved_questions)} questions about {topic}'
-        })
-        
-    except Exception as e:
-        print(f"Error generating by topic: {e}")
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-
-
-@login_required(login_url='account:login')
-@csrf_exempt
-@require_http_methods(["POST"])
-def generate_by_topic(request):
-    """Generate new MCQs based on selected topic"""
-    try:
-        user = request.user
-        data = json.loads(request.body)
-        
-        topic = data.get('topic')
-        mcq_count = data.get('mcq_count', 5)
-        
-        if not topic:
-            return JsonResponse({'status': 'error', 'message': 'No topic provided'}, status=400)
-        
-        print(f"Generating {mcq_count} questions about topic: {topic}")
-        
-        # Generate MCQs for specific topic
-        result = ask_question_json(
-            f"Generate questions about {topic}", 
-            mcq_count, 
-            user_id=user.id,
-            specific_topic=topic
-        )
-        
-        # Create new session
-        session_id = str(uuid.uuid4())[:8]
-        mcq_session = MCQSession.objects.create(
-            user=user,
-            session_id=session_id,
-            mcq_count=result['mcq_count']
-        )
-        
-        # Save questions
-        saved_questions = []
-        for mcq in result['mcqs']:
-            options = {opt['letter']: opt['text'] for opt in mcq['options']}
-            
-            question = MCQQuestion.objects.create(
-                session=mcq_session,
-                user=user,
-                question_number=mcq['number'],
-                question_text=mcq['question'],
-                option_a=options.get('A', ''),
-                option_b=options.get('B', ''),
-                option_c=options.get('C', ''),
-                option_d=options.get('D', ''),
-                correct_answer=mcq.get('correct_letter', 'A'),
-                explanation=mcq.get('explanation', ''),
-                topic=mcq.get('topic', topic)
-            )
-            saved_questions.append(question)
-        
-        return JsonResponse({
-            'status': 'success',
-            'session_id': session_id,
-            'mcqs': [q.to_json() for q in saved_questions],
-            'mcq_count': len(saved_questions),
-            'message': f'Generated {len(saved_questions)} questions about {topic}'
-        })
-        
-    except Exception as e:
-        print(f"Error generating by topic: {e}")
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-
-
-@login_required(login_url='account:login')
-@csrf_exempt
-@require_http_methods(["POST"])
-def generate_by_topic(request):
-    """Generate new MCQs based on selected topic"""
-    try:
-        user = request.user
-        data = json.loads(request.body)
-        
-        topic = data.get('topic')
-        mcq_count = data.get('mcq_count', 5)
-        
-        if not topic:
-            return JsonResponse({'status': 'error', 'message': 'No topic provided'}, status=400)
-        
-        print(f"Generating {mcq_count} questions about topic: {topic}")
-        
-        # Generate MCQs for specific topic
-        result = ask_question_json(
-            f"Generate questions about {topic}", 
-            mcq_count, 
-            user_id=user.id,
-            specific_topic=topic
-        )
-        
-        # Create new session
-        session_id = str(uuid.uuid4())[:8]
-        mcq_session = MCQSession.objects.create(
-            user=user,
-            session_id=session_id,
-            mcq_count=result['mcq_count']
-        )
-        
-        # Save questions
-        saved_questions = []
-        for mcq in result['mcqs']:
-            options = {opt['letter']: opt['text'] for opt in mcq['options']}
-            
-            question = MCQQuestion.objects.create(
-                session=mcq_session,
-                user=user,
-                question_number=mcq['number'],
-                question_text=mcq['question'],
-                option_a=options.get('A', ''),
-                option_b=options.get('B', ''),
-                option_c=options.get('C', ''),
-                option_d=options.get('D', ''),
-                correct_answer=mcq.get('correct_letter', 'A'),
-                explanation=mcq.get('explanation', ''),
-                topic=mcq.get('topic', topic)
-            )
-            saved_questions.append(question)
-        
-        return JsonResponse({
-            'status': 'success',
-            'session_id': session_id,
-            'mcqs': [q.to_json() for q in saved_questions],
-            'mcq_count': len(saved_questions),
-            'message': f'Generated {len(saved_questions)} questions about {topic}'
-        })
-        
-    except Exception as e:
-        print(f"Error generating by topic: {e}")
-        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-
-
-@login_required(login_url='account:login')
-@csrf_exempt
-@require_http_methods(["POST"])
-def generate_by_topic(request):
-    """Generate new MCQs based on selected topic"""
-    try:
-        user = request.user
-        data = json.loads(request.body)
-        
-        topic = data.get('topic')
-        mcq_count = data.get('mcq_count', 5)
-        
-        if not topic:
-            return JsonResponse({'status': 'error', 'message': 'No topic provided'}, status=400)
-        
-        print(f"Generating {mcq_count} questions about topic: {topic}")
-        
-        # Generate MCQs for specific topic
-        result = ask_question_json(
-            f"Generate questions about {topic}", 
-            mcq_count, 
-            user_id=user.id,
-            specific_topic=topic
-        )
-        
-        # Create new session
-        session_id = str(uuid.uuid4())[:8]
-        mcq_session = MCQSession.objects.create(
-            user=user,
-            session_id=session_id,
-            mcq_count=result['mcq_count']
-        )
-        
-        # Save questions
-        saved_questions = []
-        for mcq in result['mcqs']:
-            options = {opt['letter']: opt['text'] for opt in mcq['options']}
-            
-            question = MCQQuestion.objects.create(
-                session=mcq_session,
-                user=user,
-                question_number=mcq['number'],
-                question_text=mcq['question'],
-                option_a=options.get('A', ''),
-                option_b=options.get('B', ''),
-                option_c=options.get('C', ''),
-                option_d=options.get('D', ''),
-                correct_answer=mcq.get('correct_letter', 'A'),
-                explanation=mcq.get('explanation', ''),
-                topic=mcq.get('topic', topic)
+                topic=mcq.get('topic', topic) # Save the topic
             )
             saved_questions.append(question)
         

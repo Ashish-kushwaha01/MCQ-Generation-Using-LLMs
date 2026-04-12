@@ -5,7 +5,7 @@
 
 {% block css %}
 <link rel="stylesheet" type="text/css" href="{% static 'css/pdf_mcq_generator.css' %}">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
 <link rel="stylesheet" href="{% static 'css/layout.css' %}">
 <style>
     /* Additional styles */
@@ -391,7 +391,12 @@
     <div class="modal-content">
         <div class="modal-header">
             <h3><i class="fas fa-chart-bar"></i> Test Results</h3>
-            <button class="modal-close" onclick="closeResultsModal()">&times;</button>
+            <div class="modal-header-actions">
+                <button class="modal-fullscreen-btn" onclick="toggleFullscreenModal('resultsModal')">
+                    <i class="fas fa-expand"></i>
+                </button>
+                <button class="modal-close" onclick="closeResultsModal()">&times;</button>
+            </div>
         </div>
         <div class="modal-body">
             <div class="results-summary">
@@ -469,6 +474,9 @@
 let userAnswers = {};
 let currentSessionId = '{% if current_session %}{{ current_session.session_id }}{% endif %}';
 let testResults = null;
+let currentTopic = ''; // To store the topic when the modal is opened
+
+
 
 // ==================== FILE HANDLING ====================
 const pdfInput = document.getElementById('pdfFiles');
@@ -606,7 +614,7 @@ function submitTest() {
         const questionCard = document.getElementById(`mcq-${i}`);
         const correctAnswer = questionCard?.dataset.correct?.charAt(0).toUpperCase() || '';
         const userAnswer = userAnswers[i]?.charAt(0).toUpperCase() || null;
-        const topic = questionCard?.dataset.topic || 'Concept Understanding';
+        const topic = questionCard?.dataset.topic;
         
         const isCorrect = (userAnswer && userAnswer === correctAnswer);
         
@@ -734,7 +742,7 @@ function showResultsModal(results) {
             const correctDisplay = `${item.correctAnswer}) ${item.correctFullText}`;
             
             let topicHtml = '';
-            if (!item.isCorrect && item.topic && item.topic !== 'Concept Understanding') {
+            if (!item.isCorrect && item.topic) { // Display topic if not correct and topic exists
                 topicHtml = `<div class="breakdown-topic">Topic: <span class="topic-tag" onclick="openGenerateByTopicModal('${item.topic}')">${item.topic}</span></div>`;
             }
 
@@ -822,8 +830,6 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-let currentTopic = ''; // To store the topic when the modal is opened
-
 function openGenerateByTopicModal(topic) {
     currentTopic = topic;
     document.getElementById('topicToGenerate').textContent = topic;
@@ -836,10 +842,17 @@ function closeGenerateByTopicModal() {
 
 function generateMcqsForTopic() {
     const mcqCount = document.getElementById('mcqCountByTopic').value;
+    const generateButton = document.querySelector('#generateByTopicModal .btn-generate');
+    const originalButtonHtml = generateButton.innerHTML;
+
     if (mcqCount < 1 || mcqCount > 100) {
         showNotification('Please enter a number between 1 and 100.', 'warning');
         return;
     }
+
+    // Disable button and show loading indicator
+    generateButton.disabled = true;
+    generateButton.innerHTML = '<div class="btn-spinner"></div> Generating...';
 
     // AJAX call to the new Django view
     fetch("{% url 'pdf_mcq:generate_by_topic' %}", {
@@ -855,6 +868,10 @@ function generateMcqsForTopic() {
     })
     .then(response => response.json())
     .then(data => {
+        // Re-enable button and restore original HTML
+        generateButton.disabled = false;
+        generateButton.innerHTML = originalButtonHtml;
+
         if (data.status === 'success') {
             showNotification(`Generated ${data.mcq_count} MCQs for topic "${currentTopic}"!`, 'success');
             closeGenerateByTopicModal();
@@ -865,6 +882,9 @@ function generateMcqsForTopic() {
         }
     })
     .catch(error => {
+        // Re-enable button and restore original HTML
+        generateButton.disabled = false;
+        generateButton.innerHTML = originalButtonHtml;
         console.error('Error generating MCQs by topic:', error);
         showNotification('Error generating MCQs by topic. Please try again.', 'error');
     });
@@ -996,5 +1016,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
     initializeTest();
 });
+
+function toggleFullscreenModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) {
+        modal.classList.toggle('modal-fullscreen'); // Toggle on the outer modal
+        const fullscreenBtn = modal.querySelector('.modal-fullscreen-btn i');
+        if (fullscreenBtn) {
+            if (modal.classList.contains('modal-fullscreen')) {
+                fullscreenBtn.classList.remove('fa-expand');
+                fullscreenBtn.classList.add('fa-compress');
+            } else {
+                fullscreenBtn.classList.remove('fa-compress');
+                fullscreenBtn.classList.add('fa-expand');
+            }
+        }
+    }
+}
 </script>
 {% endblock %}

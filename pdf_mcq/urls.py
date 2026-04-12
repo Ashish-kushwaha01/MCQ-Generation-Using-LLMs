@@ -21,4 +21,5 @@ urlpatterns = [
     path('clear-history/', views.clear_history, name='clear_history'),
     path('submit-answers/', views.submit_answers, name='submit_answers'),
     path('get-results/<str:session_id>/', views.get_session_results, name='get_results'),
+    path('generate-by-topic/', views.generate_by_topic, name='generate_by_topic'),
 ]

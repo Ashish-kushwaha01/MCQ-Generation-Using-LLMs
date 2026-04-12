@@ -22,6 +22,7 @@ load_dotenv()
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
+
 # Configure genai
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
@@ -48,8 +49,8 @@ def get_pdf_text(pdf_files):
 # -------- TEXT CHUNKING --------
 def get_text_chunks(text):
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=1000,
-        chunk_overlap=200
+        chunk_size=2000,
+        chunk_overlap=400
     )
     return splitter.split_text(text)
 
@@ -133,13 +134,14 @@ Generate EXACTLY {mcq_count} multiple-choice questions.
 {topic_instruction}
 
 IMPORTANT RULES:
-1. Respond with ONLY valid JSON
-2. No markdown formatting, no additional text, no explanations outside JSON
-3. Each question must have exactly 4 options (A, B, C, D)
-4. Only ONE correct answer per question
-5. Mark the correct answer with its letter (A, B, C, or D)
-6. For EVERY question, provide a SPECIFIC topic name based on what the question is testing
-7. NEVER use "General" as a topic - this is FORBIDDEN
+1. Respond with ONLY valid JSON.
+2. Generate questions, options, correct answers, and explanations IN THE SAME LANGUAGE AS THE PROVIDED CONTEXT.
+3. No markdown formatting, no additional text, no explanations outside JSON.
+4. Each question must have exactly 4 options (A, B, C, D).
+5. Only ONE correct answer per question.
+6. Mark the correct answer with its letter (A, B, C, or D).
+7. For EVERY question, provide a HIGHLY SPECIFIC topic name based on what the question is testing. This topic MUST NOT be "General" or "Concept Understanding".
+8. The topic for EACH question MUST be a concise, specific phrase (e.g., "Photosynthesis Process", "Types of Volcanoes", "Indian History: Mughal Empire").
 
 The JSON structure MUST be exactly like this:
 {{
@@ -149,13 +151,13 @@ The JSON structure MUST be exactly like this:
             "question_text": "What is the main topic discussed?",
             "options": {{
                 "A": "First option",
-                "B": "Second option", 
+                "B": "Second option",
                 "C": "Third option",
                 "D": "Fourth option"
             }},
             "correct_answer": "B",
             "explanation": "Brief explanation why B is correct",
-            "topic": "SPECIFIC CONCEPT NAME"
+            "topic": "HIGHLY SPECIFIC CONCEPT NAME"
         }}
     ]
 }}
@@ -163,68 +165,60 @@ The JSON structure MUST be exactly like this:
 Context:
 {context}
 
-Generate {mcq_count} MCQs. REMEMBER: Each question MUST have a SPECIFIC topic (NOT 'General'):
+Generate {mcq_count} MCQs. REMEMBER: Each question MUST have a HIGHLY SPECIFIC topic (NOT 'General' or 'Concept Understanding'):
 """
     )
 
     chain = prompt | get_llm() | StrOutputParser()
     
-    try:
-        result = chain.invoke({
-            "context": context,
-            "mcq_count": mcq_count,
-            "topic_instruction": topic_instruction
-        })
-        
-        print(f"Raw LLM response length: {len(result)}")
-        
-        # Clean the response
-        result = clean_json_response(result)
-        return result
-        
-    except Exception as e:
-        print(f"Error generating MCQs: {e}")
-        raise Exception(f"Failed to generate MCQs: {str(e)}")
+    for _ in range(2): # Retry mechanism
+        try:
+            result = chain.invoke({
+                "context": context,
+                "mcq_count": mcq_count,
+                "topic_instruction": topic_instruction
+            })
+            
+            # Directly parse the result, as parse_json_mcqs is now robust
+            mcqs = parse_json_mcqs(result)
+            if mcqs:
+                print(f"Successfully generated {len(mcqs)} MCQs after retry attempt.")
+                return result # Return raw result for further processing if needed
+            
+        except Exception as e:
+            print(f"Error generating MCQs (retry attempt): {e}")
+            continue # Try again
+            
+    raise Exception("Failed to generate valid MCQs after multiple attempts.")
 
 
-def clean_json_response(response):
-    """Clean LLM response to extract valid JSON"""
-    # Remove markdown code blocks
-    response = re.sub(r'```json\s*', '', response)
-    response = re.sub(r'```\s*', '', response)
-    response = re.sub(r'`json\s*', '', response)
-    
-    # Remove any leading/trailing whitespace
-    response = response.strip()
-    
-    # Find JSON content - look for object
-    json_match = re.search(r'(\{.*\})', response, re.DOTALL)
-    if json_match:
-        response = json_match.group(1)
-    
-    # Try to fix common JSON issues
-    response = re.sub(r',\s*}', '}', response)
-    response = re.sub(r',\s*]', ']', response)
-    
-    return response
+
 
 
 def parse_json_mcqs(json_response):
-    """Parse JSON response into structured MCQ list"""
+    """Parse JSON response into structured MCQ list, robustly handling LLM output"""
     try:
-        # Try to parse JSON
-        data = json.loads(json_response)
+        # Attempt to find JSON within the response using regex
+        match = re.search(r"\{.*\}", json_response, re.DOTALL)
+        if not match:
+            # If no object found, try to find a list
+            match = re.search(r"\[.*\]", json_response, re.DOTALL)
+            if not match:
+                raise ValueError("No valid JSON object or list found in response.")
         
-        # Handle different possible structures
+        json_str = match.group(0)
+        data = json.loads(json_str)
+        
+        # Handle different possible structures (e.g., direct list of MCQs or an object with an 'mcqs' key)
         if 'mcqs' in data:
             mcqs_data = data['mcqs']
         elif isinstance(data, list):
             mcqs_data = data
         else:
-            mcqs_data = [data] if data else []
+            mcqs_data = [data] if data else [] # Wrap single object in a list if it's an MCQ
         
         if not mcqs_data:
-            print("No MCQs found in JSON")
+            print("No MCQs found in JSON after parsing.")
             return []
         
         mcqs = []
@@ -232,11 +226,10 @@ def parse_json_mcqs(json_response):
             try:
                 options = item.get('options', {})
                 
-                # Ensure all options exist
                 options_list = []
                 for letter in ['A', 'B', 'C', 'D']:
                     option_text = options.get(letter, '')
-                    if not option_text:
+                    if not option_text: # Try lowercase if uppercase not found
                         option_text = options.get(letter.lower(), '')
                     options_list.append({
                         'letter': letter,
@@ -245,14 +238,17 @@ def parse_json_mcqs(json_response):
                     })
                 
                 correct_letter = item.get('correct_answer', 'A').upper()
-                # Find correct option text
                 correct_text = ""
                 for opt in options_list:
                     if opt['letter'] == correct_letter:
                         correct_text = opt['text']
                         break
 
-                topic = item.get('topic', 'Concept Understanding') # Fixed: Provide a default string if 'topic' is not found
+                topic = item.get('topic')
+                print(f"DEBUG (parse_json_mcqs): Raw topic from LLM: '{topic}' (Type: {type(topic)})")
+                if not topic or topic.strip() == "":
+                    topic = "Topic Analysis Required"
+                print(f"DEBUG (parse_json_mcqs): Processed topic: '{topic}'")
                 
                 mcq = {
                     'number': item.get('question_number', idx + 1),
@@ -261,21 +257,49 @@ def parse_json_mcqs(json_response):
                     'correct_answer': f"{correct_letter}) {correct_text}",
                     'correct_letter': correct_letter,
                     'explanation': item.get('explanation', 'No explanation provided'),
-                    'topic': topic if topic and topic.lower() != 'general' else "Concept Understanding"
+                    'topic': topic
                 }
                 mcqs.append(mcq)
                 
             except Exception as e:
-                print(f"Error parsing MCQ {idx}: {e}")
+                print(f"Error processing individual MCQ {idx}: {e}")
                 continue
         
-        print(f"Successfully parsed {len(mcqs)} MCQs")
+        print(f"Parsed MCQs (with topics): {[m['topic'] for m in mcqs]}")
+        print(f"Successfully parsed {len(mcqs)} MCQs.")
         return mcqs
         
     except json.JSONDecodeError as e:
-        print(f"JSON Parse Error: {e}")
-        print(f"Raw response from LLM: {json_response}") # Print full raw response
+        print(f"JSON Decode Error: {e}")
+        print(f"Raw response from LLM (for debug): {json_response}")
         return []
+    except ValueError as e:
+        print(f"Parsing Error: {e}")
+        print(f"Raw response from LLM (for debug): {json_response}")
+        return []
+    except Exception as e:
+        print(f"Unexpected error in parse_json_mcqs: {e}")
+        print(f"Raw response from LLM (for debug): {json_response}")
+        return []
+
+
+# -------- CONTEXT RETRIEVAL --------
+def get_context(query, user_id=None):
+    """Retrieve relevant context from user-specific vector store"""
+    embeddings = GoogleGenerativeAIEmbeddings(
+        model="models/gemini-embedding-001",
+        google_api_key=GOOGLE_API_KEY
+    )
+
+    db = load_vector_store(user_id=user_id)
+
+    docs = db.similarity_search(query, k=4)
+    return "\n\n".join(doc.page_content for doc in docs)
+
+
+def get_weak_context(topics, user_id=None):
+    """Retrieve context for weak topics"""
+    return get_context(" ".join(topics), user_id=user_id)
 
 
 # -------- QUERY FUNCTION --------
@@ -306,11 +330,6 @@ def ask_question_json(question, mcq_count, user_id=None, specific_topic=None):
         
         if not mcqs:
             raise Exception("Failed to parse MCQs from LLM response. Please try again.")
-        
-        # Ensure all MCQs have proper topics
-        for mcq in mcqs:
-            if not mcq['topic'] or mcq['topic'].lower() == 'general':
-                mcq['topic'] = extract_topic_from_question(mcq['question'])
         
         print(f"Successfully generated {len(mcqs)} MCQs")
         

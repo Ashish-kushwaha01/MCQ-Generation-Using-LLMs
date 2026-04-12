@@ -72,7 +72,8 @@ class MCQQuestion(models.Model):
             'options': options_list,
             'correct_answer': f"{self.correct_answer}) {correct_text}",
             'correct_letter': self.correct_answer,
-            'explanation': self.explanation or ''
+            'explanation': self.explanation or '',
+            'topic': self.topic or 'Topic Analysis Required'
         }
     
     def __str__(self):

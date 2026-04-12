@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'account',
     'test_all',
     'pdf_mcq',
+    'summarize',
     
 ]
 
