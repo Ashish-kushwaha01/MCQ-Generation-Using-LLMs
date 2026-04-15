@@ -424,6 +424,10 @@
                         <span class="stat-label">Unanswered:</span>
                         <span class="stat-value unanswered-stat" id="unansweredStat">0</span>
                     </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Time Taken:</span>
+                        <span class="stat-value" id="timeTakenStat">0s</span>
+                    </div>
                 </div>
             </div>
             <div class="results-breakdown">
@@ -475,6 +479,7 @@ let userAnswers = {};
 let currentSessionId = '{% if current_session %}{{ current_session.session_id }}{% endif %}';
 let testResults = null;
 let currentTopic = ''; // To store the topic when the modal is opened
+let testStartTime; // Global variable to store the test start time
 
 
 
@@ -518,6 +523,9 @@ function preventDefaults(e) {
 function initializeTest() {
     const totalQuestions = document.querySelectorAll('.question-card').length;
     if (totalQuestions === 0) return;
+    
+    // Start the timer
+    testStartTime = new Date().getTime();
     
     // Initialize userAnswers
     for (let i = 1; i <= totalQuestions; i++) {
@@ -651,6 +659,13 @@ function submitTest() {
     
     const unansweredCount = totalQuestions - (correctCount + incorrectCount);
     const percentage = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+
+    // Calculate time taken
+    let timeTaken = 0;
+    if (testStartTime) {
+        const endTime = new Date().getTime();
+        timeTaken = Math.round((endTime - testStartTime) / 1000); // Time in seconds
+    }
     
     testResults = {
         total: totalQuestions,
@@ -659,18 +674,19 @@ function submitTest() {
         incorrect: incorrectCount,
         unanswered: unansweredCount,
         percentage: percentage,
-        breakdown: breakdown
+        breakdown: breakdown,
+        timeTaken: timeTaken // Add time taken to results
     };
     
     showResultsModal(testResults);
     
     // Save answers to server if session exists
     if (currentSessionId) {
-        saveAnswersToServer();
+        saveAnswersToServer(timeTaken);
     }
 }
 
-function saveAnswersToServer() {
+function saveAnswersToServer(timeTaken) {
     const answers = {};
     const totalQuestions = document.querySelectorAll('.question-card').length;
     
@@ -685,6 +701,7 @@ function saveAnswersToServer() {
     
     console.log("Saving answers:", answers);
     console.log("Session ID:", currentSessionId);
+    console.log("Time Taken:", timeTaken);
     
     if (Object.keys(answers).length === 0) {
         console.log("No answers to save");
@@ -699,7 +716,8 @@ function saveAnswersToServer() {
         },
         body: JSON.stringify({
             session_id: currentSessionId,
-            answers: answers
+            answers: answers,
+            time_taken: timeTaken // Send time taken to backend
         })
     })
     .then(response => response.json())
@@ -728,6 +746,7 @@ function showResultsModal(results) {
     document.getElementById('incorrectStat').textContent = results.incorrect;
     document.getElementById('unansweredStat').textContent = results.unanswered;
     document.getElementById('resultPercentage').textContent = results.percentage + '%';
+    document.getElementById('timeTakenStat').textContent = `${results.timeTaken}s`;
     
     const breakdownList = document.getElementById('breakdownList');
     if (breakdownList) {

@@ -20,6 +20,7 @@ class MCQSession(models.Model):
     session_id = models.CharField(max_length=100, unique=True)
     mcq_count = models.IntegerField(default=10)
     created_at = models.DateTimeField(default=timezone.now)
+    time_taken = models.IntegerField(null=True, blank=True) # New field to store time taken in seconds
     
     def __str__(self):
         return f"Session {self.session_id} - {self.user.username} - {self.created_at.strftime('%Y-%m-%d %H:%M')}"

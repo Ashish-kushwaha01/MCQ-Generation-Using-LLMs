@@ -216,14 +216,18 @@ def submit_answers(request):
             
             session_id = data.get('session_id')
             answers = data.get('answers', {})
+            time_taken = data.get('time_taken') # Get time_taken from request
             
             print(f"Received answers for session {session_id}: {answers}")  # Debug
+            print(f"Received time taken: {time_taken} seconds") # Debug
             
             if not session_id:
                 return JsonResponse({'status': 'error', 'message': 'Session ID required'}, status=400)
             
             try:
                 session = MCQSession.objects.get(session_id=session_id, user=user)
+                session.time_taken = time_taken # Save time_taken to session
+                session.save()
                 
                 saved_count = 0
                 for question_id_str, selected_answer in answers.items():
