@@ -22,4 +22,6 @@ urlpatterns = [
     path('submit-answers/', views.submit_answers, name='submit_answers'),
     path('get-results/<str:session_id>/', views.get_session_results, name='get_results'),
     path('generate-by-topic/', views.generate_by_topic, name='generate_by_topic'),
+    path('summarize-topic/', views.summarize_topic_view, name='summarize_topic'),
+    path('download-mcqs-pdf/', views.download_mcqs_pdf, name='download_mcqs_pdf'),
 ]

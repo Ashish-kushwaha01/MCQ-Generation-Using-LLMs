@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Summary for {{ topic }}{% endblock %}
+
+{% block css %}
+<link rel="stylesheet" type="text/css" href="{% static 'css/layout.css' %}">
+<style>
+    .summary-container {
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 30px;
+        background-color: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        line-height: 1.7;
+        color: #333;
+        padding-top: 100px; /* Added to prevent overlap with fixed header */
+    }
+    .summary-header {
+        text-align: center;
+        margin-bottom: 30px;
+        border-bottom: 2px solid #eee;
+        padding-bottom: 20px;
+    }
+    .summary-header h1 {
+        font-size: 2.5em;
+        color: #2c3e50;
+        margin-bottom: 10px;
+        font-weight: 700;
+    }
+    .summary-header p {
+        font-size: 1.1em;
+        color: #7f8c8d;
+    }
+    .summary-content {
+        font-size: 1.1em;
+        text-align: justify;
+        white-space: pre-wrap; /* Preserves whitespace and line breaks */
+    }
+    .summary-content p {
+        margin-bottom: 1em;
+    }
+    .back-link {
+        display: block;
+        text-align: center;
+        margin-top: 40px;
+        font-size: 1.1em;
+    }
+    .back-link a {
+        color: #3498db;
+        text-decoration: none;
+        font-weight: 600;
+        padding: 10px 20px;
+        border: 1px solid #3498db;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+    .back-link a:hover {
+        background-color: #3498db;
+        color: #ffffff;
+        box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="summary-container">
+    <div class="summary-header">
+        <h1>Detailed Summary for "{{ topic }}"</h1>
+        <p>Generated from your uploaded PDF content.</p>
+    </div>
+    <div class="summary-content">
+        {% if summary %}
+            <p>{{ summary }}</p>
+        {% else %}
+            <p>No summary could be generated for this topic. Please ensure your PDFs contain relevant information.</p>
+        {% endif %}
+    </div>
+    <div class="back-link">
+        <a href="{% url 'pdf_mcq:pdf_mcq' %}">Back to MCQ Generator</a>
+    </div>
+</div>
+{% endblock %}

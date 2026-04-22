@@ -5,7 +5,7 @@ from datetime import datetime
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
 from django.views.decorators.csrf import csrf_exempt
@@ -19,9 +19,149 @@ from .pdf_logic import (
     create_vector_store,
     ask_question_json,
     get_context,
-    get_weak_context
+    get_weak_context,
+    generate_detailed_summary,
+    delete_user_faiss_index
 )
 from .models import PDFDocument, MCQSession, MCQQuestion, UserAnswer
+
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, KeepTogether
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.units import inch
+from io import BytesIO
+
+
+@login_required(login_url='account:login')
+def download_mcqs_pdf(request):
+    user = request.user
+    session_id = request.GET.get('session_id')
+
+    if not session_id:
+        messages.error(request, "Session ID is required to download MCQs.")
+        return JsonResponse({'status': 'error', 'message': 'Session ID is required'}, status=400)
+
+    try:
+        mcq_session = MCQSession.objects.get(session_id=session_id, user=user)
+        questions = MCQQuestion.objects.filter(session=mcq_session, user=user).order_by('question_number')
+
+        if not questions.exists():
+            messages.warning(request, "No MCQs found for this session.")
+            return JsonResponse({'status': 'error', 'message': 'No MCQs found for this session'}, status=404)
+
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+
+        # Custom styles
+        h1_style = ParagraphStyle(
+            'h1_custom',
+            parent=styles['h1'],
+            fontSize=24,
+            leading=28,
+            alignment=TA_CENTER,
+            spaceAfter=14,
+            fontName='Helvetica-Bold'
+        )
+        h2_style = ParagraphStyle(
+            'h2_custom',
+            parent=styles['h2'],
+            fontSize=14,
+            leading=18,
+            alignment=TA_CENTER,
+            spaceAfter=10,
+            fontName='Helvetica'
+        )
+        question_style = ParagraphStyle(
+            'question_custom',
+            parent=styles['Normal'],
+            fontSize=12,
+            leading=14,
+            spaceBefore=12,
+            spaceAfter=6,
+            fontName='Helvetica-Bold'
+        )
+        option_style = ParagraphStyle(
+            'option_custom',
+            parent=styles['Normal'],
+            fontSize=11,
+            leading=13,
+            spaceBefore=3,
+            spaceAfter=3,
+            leftIndent=0.3 * inch,
+            fontName='Helvetica'
+        )
+        # Checkbox style - using a square character
+        checkbox_char = '&#9744;' # Unicode for an empty checkbox
+        
+        # Title
+        story.append(Paragraph("EduLearn", h1_style))
+        story.append(Paragraph(f"MCQs for Session: {mcq_session.session_id}", h2_style))
+        story.append(Spacer(1, 0.2 * inch))
+
+        for q_num, question in enumerate(questions, 1):
+            question_text = f"{q_num}. {question.question_text}"
+            story.append(Paragraph(question_text, question_style))
+
+            options = [
+                (question.option_a, 'A'),
+                (question.option_b, 'B'),
+                (question.option_c, 'C'),
+                (question.option_d, 'D'),
+            ]
+
+            for option_text, option_letter in options:
+                # Using a simple square for checkbox
+                option_line = f"{checkbox_char} {option_letter}. {option_text}"
+                story.append(Paragraph(option_line, option_style))
+            story.append(Spacer(1, 0.1 * inch)) # Small space after each question
+
+        doc.build(story)
+        buffer.seek(0)
+
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="mcqs_session_{session_id}.pdf"'
+        return response
+
+    except MCQSession.DoesNotExist:
+        print(f"MCQ Session {session_id} not found for user {user.id}")
+        return JsonResponse({'status': 'error', 'message': 'MCQ Session not found'}, status=404)
+    except Exception as e:
+        print(f"Error generating PDF for session {session_id}: {e}")
+        return JsonResponse({'status': 'error', 'message': f'Error generating PDF: {str(e)}'}, status=500)
+
+
+@login_required(login_url='account:login')
+def summarize_topic_view(request):
+    user = request.user
+    session_id = request.GET.get('session_id')
+    topic = request.GET.get('topic')
+
+    if not session_id or not topic:
+        messages.error(request, "Session ID and topic are required to summarize.")
+        return redirect('pdf_mcq:pdf_mcq')
+
+    try:
+        mcq_session = MCQSession.objects.get(session_id=session_id, user=user)
+        
+        # Generate detailed summary using the new logic function
+        summary_text = generate_detailed_summary(topic, user.id)
+
+        context = {
+            'topic': topic,
+            'summary': summary_text,
+            'session_id': session_id,
+        }
+        return render(request, 'pdf_mcq/topic_summary.html', context)
+
+    except MCQSession.DoesNotExist:
+        messages.error(request, "MCQ Session not found.")
+        return redirect('pdf_mcq:pdf_mcq')
+    except Exception as e:
+        messages.error(request, f"Error generating summary: {str(e)}")
+        return redirect('pdf_mcq:pdf_mcq')
 
 
 @login_required(login_url='account:login')
@@ -43,6 +183,10 @@ def pdf_mcq_view(request):
     if request.method == "POST":
         # PDF Upload
         if request.FILES.getlist("pdf_files"):
+            # Clear previous PDFs and FAISS index for the user
+            PDFDocument.objects.filter(user=user).delete()
+            delete_user_faiss_index(user.id)
+
             pdf_files = request.FILES.getlist("pdf_files")
             text = get_pdf_text(pdf_files)
             

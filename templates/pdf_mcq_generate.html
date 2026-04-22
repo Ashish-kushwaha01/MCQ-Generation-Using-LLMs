@@ -52,6 +52,20 @@
         from { transform: translateX(100%); opacity: 0; }
         to { transform: translateX(0); opacity: 1; }
     }
+    #topicToGenerate {
+        cursor: pointer;
+        text-decoration: underline;
+        color: #007bff; /* Optional: to make it look more like a link */
+    }
+    .topic-tag {
+        cursor: pointer;
+        text-decoration: underline;
+        color: #007bff;
+        font-weight: 500;
+    }
+    .topic-tag:hover {
+        color: #0056b3;
+    }
 </style>
 {% endblock %}
 
@@ -297,6 +311,10 @@
                     <i class="fas fa-check-circle"></i>
                     Submit Test
                 </button>
+                <button class="btn-download-pdf" onclick="downloadMcqsAsPdf()">
+                    <i class="fas fa-download"></i>
+                    Download MCQs (PDF)
+                </button>
             </div>
         </div>
         {% elif current_session_data %}
@@ -456,7 +474,7 @@
             <button class="modal-close" onclick="closeGenerateByTopicModal()">×</button>
         </div>
         <div class="modal-body">
-            <p>Generate more questions specifically about: <strong id="topicToGenerate"></strong></p>
+            <p>Generate more questions specifically about: <strong id="topicToGenerate" onclick="openTopicSummary(this.textContent)"></strong></p>
             <div class="input-wrapper">
                 <label for="mcqCountByTopic">Number of MCQs:</label>
                 <input type="number" id="mcqCountByTopic" value="5" min="1" max="100">
@@ -484,36 +502,45 @@ let testStartTime; // Global variable to store the test start time
 
 
 // ==================== FILE HANDLING ====================
-const pdfInput = document.getElementById('pdfFiles');
-const fileCountSpan = document.getElementById('fileCount');
-const selectedFilesDiv = document.getElementById('selectedFiles');
-const dropZone = document.getElementById('dropZone');
-const pdfColors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
+    const pdfInput = document.getElementById('pdfFiles');
+    const fileCountSpan = document.getElementById('fileCount');
+    const selectedFilesDiv = document.getElementById('selectedFiles');
+    const dropZone = document.getElementById('dropZone');
+    const pdfColors = ['#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6'];
 
-// Global functions (accessible from HTML attributes and other scripts)
-function displaySelectedFiles(files) {
-    console.log('displaySelectedFiles called with:', files);
-    selectedFilesDiv.innerHTML = '<div class="selected-files-header"><i class="fas fa-file-pdf"></i> Selected Files:</div>';
-    
-    if (files.length === 0) {
-        selectedFilesDiv.innerHTML += '<p>No files to display.</p>';
-        return;
+    // Global functions (accessible from HTML attributes and other scripts)
+    function openTopicSummary(topic) {
+        if (currentSessionId) {
+            const url = `/pdf_mcq/summarize-topic/?session_id=${currentSessionId}&topic=${encodeURIComponent(topic)}`;
+            window.open(url, '_blank');
+        } else {
+            showNotification('Please generate MCQs first to get a session.', 'warning');
+        }
     }
-    
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const fileItem = document.createElement('div');
-        fileItem.className = 'selected-file-item';
-        fileItem.innerHTML = `
-            <i class="fas fa-file-pdf" style="color: ${pdfColors[i % pdfColors.length]};"></i>
-            <span class="file-name">${file.name}</span>
-            <span class="file-size">${(file.size / 1024).toFixed(1)} KB</span>
-            <i class="fas fa-check-circle file-check"></i>
-        `;
-        selectedFilesDiv.appendChild(fileItem);
-        console.log('Appended file item:', file.name);
+
+    function displaySelectedFiles(files) {
+        console.log('displaySelectedFiles called with:', files);
+        selectedFilesDiv.innerHTML = '<div class="selected-files-header"><i class="fas fa-file-pdf"></i> Selected Files:</div>';
+        
+        if (files.length === 0) {
+            selectedFilesDiv.innerHTML += '<p>No files to display.</p>';
+            return;
+        }
+        
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            const fileItem = document.createElement('div');
+            fileItem.className = 'selected-file-item';
+            fileItem.innerHTML = `
+                <i class="fas fa-file-pdf" style="color: ${pdfColors[i % pdfColors.length]};"></i>
+                <span class="file-name">${file.name}</span>
+                <span class="file-size">${(file.size / 1024).toFixed(1)} KB</span>
+                <i class="fas fa-check-circle file-check"></i>
+            `;
+            selectedFilesDiv.appendChild(fileItem);
+            console.log('Appended file item:', file.name);
+        }
     }
-}
 
 function preventDefaults(e) {
     e.preventDefault();
@@ -761,8 +788,8 @@ function showResultsModal(results) {
             const correctDisplay = `${item.correctAnswer}) ${item.correctFullText}`;
             
             let topicHtml = '';
-            if (!item.isCorrect && item.topic) { // Display topic if not correct and topic exists
-                topicHtml = `<div class="breakdown-topic">Topic: <span class="topic-tag" onclick="openGenerateByTopicModal('${item.topic}')">${item.topic}</span></div>`;
+            if (item.topic) { // Display topic if it exists for all questions
+                topicHtml = `<div class="breakdown-topic">Topic: <span class="topic-tag" onclick="openTopicSummary('${item.topic}')">${item.topic}</span></div>`;
             }
 
             breakdownItem.innerHTML = `
@@ -798,21 +825,26 @@ function reviewTest() {
 }
 
 function showAllAnswers() {
-    closeResultsModal();
-    
-    const totalQuestions = document.querySelectorAll('.question-card').length;
-    for (let i = 1; i <= totalQuestions; i++) {
-        const answerSection = document.getElementById(`answerSection-${i}`);
-        if (answerSection) answerSection.style.display = 'block';
+        closeResultsModal();
         
-        const optionRows = document.querySelectorAll(`#mcq-${i} .option-row`);
-        optionRows.forEach(row => {
-            if (row.dataset.correct === 'true') {
-                row.classList.add('correct-option');
-            }
-        });
+        const totalQuestions = document.querySelectorAll('.question-card').length;
+        for (let i = 1; i <= totalQuestions; i++) {
+            const answerSection = document.getElementById(`answerSection-${i}`);
+            if (answerSection) answerSection.style.display = 'block';
+            
+            const optionRows = document.querySelectorAll(`#mcq-${i} .option-row`);
+            optionRows.forEach(row => {
+                if (row.dataset.correct === 'true') {
+                    row.classList.add('correct-option');
+                }
+                // Disable radio buttons to prevent further selection
+                const radio = row.querySelector('input[type="radio"]');
+                if (radio) {
+                    radio.disabled = true;
+                }
+            });
+        }
     }
-}
 
 function loadSession(sessionId) {
     const form = document.createElement('form');
@@ -909,7 +941,37 @@ function generateMcqsForTopic() {
     });
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+function downloadMcqsAsPdf() {
+        if (!currentSessionId) {
+            showNotification('Please generate MCQs first to download.', 'warning');
+            return;
+        }
+
+        const downloadUrl = `{% url 'pdf_mcq:download_mcqs_pdf' %}?session_id=${currentSessionId}`;
+        
+        // Use fetch to make a GET request
+        fetch(downloadUrl)
+            .then(response => {
+                if (response.ok && response.headers.get('Content-Type') === 'application/pdf') {
+                    // If response is OK and content-type is PDF, it's a PDF, so open it in a new tab
+                    window.open(downloadUrl, '_blank');
+                } else if (response.headers.get('Content-Type') === 'application/json') {
+                    // If response is JSON, it's likely an error response
+                    return response.json().then(errorData => {
+                        showNotification(`Error: ${errorData.message}`, 'error');
+                    });
+                } else {
+                    // Handle other unexpected responses
+                    showNotification('An unexpected response was received during PDF download.', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error downloading PDF:', error);
+                showNotification('An unexpected error occurred during PDF download.', 'error');
+            });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
     // File input change event
     if (pdfInput) {
         pdfInput.addEventListener('change', function(e) {

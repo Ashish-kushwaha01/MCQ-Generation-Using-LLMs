@@ -125,3 +125,4 @@ xxhash==3.6.0
 yarl==1.22.0
 youtube-transcript-api==1.2.4
 zstandard==0.25.0
+reportlab==4.2.0

@@ -2,6 +2,7 @@ import os
 import re
 import json
 import warnings
+import shutil # New import for deleting directories
 from dotenv import load_dotenv
 
 from pypdf import PdfReader
@@ -29,6 +30,24 @@ if GOOGLE_API_KEY:
     print(f"Google API configured successfully")
 else:
     print("WARNING: GOOGLE_API_KEY not found in environment variables")
+
+# -------- FAISS INDEX MANAGEMENT --------
+def get_faiss_index_path(user_id):
+    """Constructs the path for a user's FAISS index."""
+    return f"faiss_index_{user_id}"
+
+def delete_user_faiss_index(user_id):
+    """Deletes a user's FAISS index directory if it exists."""
+    index_path = get_faiss_index_path(user_id)
+    if os.path.exists(index_path):
+        try:
+            shutil.rmtree(index_path)
+            print(f"Successfully deleted FAISS index for user {user_id} at {index_path}")
+        except Exception as e:
+            print(f"Error deleting FAISS index for user {user_id}: {e}")
+            raise
+    else:
+        print(f"No FAISS index found for user {user_id} at {index_path}")
 
 # -------- PDF TEXT EXTRACTION --------
 def get_pdf_text(pdf_files):
@@ -343,4 +362,54 @@ def ask_question_json(question, mcq_count, user_id=None, specific_topic=None):
         raise Exception("Please upload and process PDFs first before generating MCQs.")
     except Exception as e:
         print(f"Error in ask_question_json: {e}")
+        raise
+
+
+def generate_detailed_summary(topic, user_id=None):
+    """Generate a detailed summary for a given topic from user-specific vector store"""
+    try:
+        if not GOOGLE_API_KEY:
+            raise Exception("GOOGLE_API_KEY not found. Please check your .env file.")
+
+        print(f"Loading vector store for user {user_id} to summarize topic: {topic}...")
+        db = load_vector_store(user_id=user_id)
+
+        # Retrieve relevant context for the topic
+        print(f"Retrieving context for topic: {topic}")
+        docs = db.similarity_search(topic, k=10) # Retrieve more documents for a detailed summary
+        context = "\n\n".join(doc.page_content for doc in docs)
+
+        if not context or len(context.strip()) < 200: # Require more context for a detailed summary
+            raise Exception("Not enough relevant content in PDFs to generate a detailed summary for this topic. Please upload PDFs with more content related to the topic.")
+
+        print(f"Context length for summary: {len(context)} characters")
+        print(f"Generating detailed summary for topic: {topic}...")
+
+        llm = get_llm()
+        prompt = PromptTemplate.from_template(
+            """
+You are an expert summarizer. Your task is to provide a detailed and comprehensive summary of the following content, focusing specifically on the topic: "{topic}".
+
+            Ensure the summary is well-structured, informative, and covers all key aspects related to "{topic}" present in the provided context. The summary should be at least 200 words long if sufficient information is available. The summary MUST be generated in the same language as the provided Context.
+
+            Context:
+            {context}
+
+            Detailed Summary of "{topic}":
+            """
+        )
+
+        chain = prompt | llm | StrOutputParser()
+        summary = chain.invoke({"context": context, "topic": topic})
+
+        if not summary or len(summary.strip()) < 50: # Minimum length for a useful summary
+            raise Exception("Generated summary is too short or empty. Please try again with more relevant content.")
+
+        print(f"Successfully generated summary for topic: {topic}")
+        return summary
+
+    except FileNotFoundError as e:
+        raise Exception("Please upload and process PDFs first before generating summaries.")
+    except Exception as e:
+        print(f"Error in generate_detailed_summary: {e}")
         raise
