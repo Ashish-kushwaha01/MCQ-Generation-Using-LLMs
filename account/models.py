@@ -2,6 +2,8 @@ from django.db import models
 from django.utils import timezone
 from datetime import timedelta
 
+print("HEllo world")
+
 class Register(models.Model):
     name=models.CharField(max_length=100)
     email=models.EmailField(max_length=100)
