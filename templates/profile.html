@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}My Profile{% endblock %}
+
+{% block css %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'css/profile.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="profile-header text-center mb-4">
+        <div class="avatar-container mx-auto mb-3">
+            <i class="fas fa-user"></i> 
+        </div>
+        <h2>User Profile</h2>
+        <p class="lead">{{ user.email }}</p>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            User Information
+        </div>
+        <div class="card-body">
+            <p><strong>Username:</strong> {{ user.username }}</p>
+            <p><strong>Email:</strong> {{ user.email }}</p>
+            <p><strong>Date Joined:</strong> {{ user.date_joined|date:"F d, Y" }}</p>
+            <p><strong>Last Login:</strong> {{ user.last_login|date:"F d, Y H:i" }}</p>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            Activity Summary
+        </div>
+        <div class="card-body">
+            <p><strong>Total PDFs Processed:</strong> {{ total_pdfs_processed }}</p>
+            <p><strong>Total MCQ Sessions:</strong> {{ total_mcq_sessions }}</p>
+            <p><strong>Total MCQs Generated:</strong> {{ total_mcqs_generated }}</p>
+            <p><strong>Total Tests Given:</strong> {{ total_tests_given }}</p>
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            Processed PDFs
+        </div>
+        <div class="card-body">
+            {% if pdf_documents %}
+                <ul class="list-group">
+                    {% for pdf in pdf_documents %}
+                        <li class="list-group-item">
+                            {{ pdf.file_name }} ({{ pdf.file_size|filesizeformat }}) - Uploaded: {{ pdf.uploaded_at|date:"F d, Y H:i" }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No PDFs processed yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            MCQ Sessions
+        </div>
+        <div class="card-body">
+            {% if mcq_sessions %}
+                <ul class="list-group">
+                    {% for session in mcq_sessions %}
+                        <li class="list-group-item">
+                            Session ID: {{ session.session_id }} - MCQs: {{ session.mcq_count }} - Created: {{ session.created_at|date:"F d, Y H:i" }}
+                            {% if session.time_taken %}
+                                - Time Taken: {{ session.time_taken }} seconds
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No MCQ sessions created yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">
+            Test Attempts
+        </div>
+        <div class="card-body">
+            {% if test_attempts %}
+                <ul class="list-group">
+                    {% for attempt in test_attempts %}
+                        <li class="list-group-item">
+                            Test: {{ attempt.test.title }} - Started: {{ attempt.started_at|date:"F d, Y H:i" }}
+                            {% if attempt.completed %}
+                                - Completed: {{ attempt.completed_at|date:"F d, Y H:i" }} - Score: {{ attempt.correct }}/{{ attempt.total }}
+                            {% else %}
+                                - (In Progress)
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>No test attempts recorded yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

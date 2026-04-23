@@ -524,6 +524,7 @@ let testStartTime; // Global variable to store the test start time
         
         if (files.length === 0) {
             selectedFilesDiv.innerHTML += '<p>No files to display.</p>';
+            console.log('selectedFilesDiv innerHTML after no files:', selectedFilesDiv.innerHTML);
             return;
         }
         
@@ -540,6 +541,7 @@ let testStartTime; // Global variable to store the test start time
             selectedFilesDiv.appendChild(fileItem);
             console.log('Appended file item:', file.name);
         }
+        console.log('selectedFilesDiv innerHTML after files appended:', selectedFilesDiv.innerHTML);
     }
 
 function preventDefaults(e) {
@@ -789,7 +791,7 @@ function showResultsModal(results) {
             
             let topicHtml = '';
             if (item.topic) { // Display topic if it exists for all questions
-                topicHtml = `<div class="breakdown-topic">Topic: <span class="topic-tag" onclick="openTopicSummary('${item.topic}')">${item.topic}</span></div>`;
+                topicHtml = `<div class="breakdown-topic">Topic: <span class="topic-tag" onclick="openGenerateByTopicModal('${item.topic}')">${item.topic}</span></div>`;
             }
 
             breakdownItem.innerHTML = `
@@ -843,6 +845,22 @@ function showAllAnswers() {
                     radio.disabled = true;
                 }
             });
+
+            // Add topic to the question header
+            const questionCard = document.getElementById(`mcq-${i}`);
+            const topic = questionCard?.dataset.topic;
+            if (topic) {
+                const questionHeader = questionCard.querySelector('.question-header');
+                let topicSpan = questionHeader.querySelector('.topic-tag-display');
+                if (!topicSpan) {
+                    topicSpan = document.createElement('span');
+                    topicSpan.className = 'topic-tag topic-tag-display';
+                    topicSpan.style.marginLeft = 'auto'; // Push to the right
+                    topicSpan.onclick = () => openTopicSummary(topic);
+                    questionHeader.appendChild(topicSpan);
+                }
+                topicSpan.textContent = topic;
+            }
         }
     }
 
