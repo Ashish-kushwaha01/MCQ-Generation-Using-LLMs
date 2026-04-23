@@ -179,6 +179,31 @@ def pdf_mcq_view(request):
     
     # IMPORTANT: Set pdfs_processed for template
     context['pdfs_processed'] = vector_store_exists
+
+    # Handle session_id in GET request (e.g., after generate by topic redirect)
+    get_session_id = request.GET.get('session_id')
+    if get_session_id:
+        try:
+            mcq_session = MCQSession.objects.get(session_id=get_session_id, user=user)
+            questions = MCQQuestion.objects.filter(session=mcq_session, user=user).order_by('question_number')
+            
+            user_answers = UserAnswer.objects.filter(
+                user=user, 
+                session=mcq_session
+            ).values_list('question_id', 'selected_answer')
+            user_answers_dict = {str(ua[0]): ua[1] for ua in user_answers}
+            
+            context.update({
+                "current_session": mcq_session,
+                "current_mcqs": [q.to_json() for q in questions],
+                "mcq_count": questions.count(),
+                "pdfs_processed": True,
+                "show_test": True,
+                "user_answers": user_answers_dict
+            })
+        except MCQSession.DoesNotExist:
+            messages.error(request, "Session not found")
+            # Continue without loading a session, will show empty state or latest if other logic applies
     
     if request.method == "POST":
         # PDF Upload
@@ -317,16 +342,8 @@ def pdf_mcq_view(request):
         })
     
     # Get current session data (most recent if exists)
+    # This block is removed to prevent automatic loading of previous sessions
     current_session_data = None
-    if all_sessions.exists() and not context.get('current_session'):
-        latest_session = all_sessions.first()
-        questions = MCQQuestion.objects.filter(session=latest_session, user=user).order_by('question_number')
-        if questions.exists():
-            current_session_data = {
-                'session': latest_session,
-                'mcqs': [q.to_json() for q in questions],
-                'mcq_count': questions.count()
-            }
     
     # Convert chat history to JSON with proper datetime handling
     context.update({
