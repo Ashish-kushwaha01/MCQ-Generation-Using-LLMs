@@ -124,6 +124,14 @@ document.addEventListener('DOMContentLoaded', function() {
         return cookieValue;
     }
 
+    // Function to scroll to the questions section (made global)
+    window.scrollToQuestions = function() {
+        const currentConversation = document.getElementById('currentConversation');
+        if (currentConversation) {
+            currentConversation.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    };
+
     // --- Resizing Logic ---
     const resizeHandles = document.querySelectorAll('.resize-handle');
     let isResizing = false;
