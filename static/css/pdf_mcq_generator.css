@@ -497,8 +497,7 @@ body {
     box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
 }
 
-.feedback-modal .btn-submit-feedback {
-}
+
 
 /* Chatbot Icon */
 .chatbot-icon {
@@ -758,7 +757,10 @@ body {
     40% {
         transform: scale(1);
     }
-}    width: 100%;
+}  
+
+.feedback-modal .btn-submit-feedback {
+width: 100%;
     padding: 12px 20px;
     background: linear-gradient(135deg, var(--primary), var(--secondary));
     color: white;
