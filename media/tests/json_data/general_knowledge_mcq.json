@@ -1,0 +1,144 @@
+{
+  "title": "General Knowledge MCQ Test",
+  "description": "Basic general knowledge questions with answers",
+  "subject": "General Knowledge",
+  "duration": 60,
+  "total_questions": 15,
+  "questions": [
+    {
+      "question": "Who was the first President of India?",
+      "topic": "History",
+      "option_a": "Jawaharlal Nehru",
+      "option_b": "Dr. Rajendra Prasad",
+      "option_c": "Mahatma Gandhi",
+      "option_d": "Sardar Patel",
+      "correct_option": "B"
+    },
+    {
+      "question": "What is the value of \u03c0 (pi) approximately?",
+      "topic": "Mathematics",
+      "option_a": "2.14",
+      "option_b": "3.14",
+      "option_c": "4.13",
+      "option_d": "3.41",
+      "correct_option": "B"
+    },
+    {
+      "question": "In which year did India gain independence?",
+      "topic": "History",
+      "option_a": "1945",
+      "option_b": "1946",
+      "option_c": "1947",
+      "option_d": "1950",
+      "correct_option": "C"
+    },
+    {
+      "question": "What is 12 \u00d7 8?",
+      "topic": "Mathematics",
+      "option_a": "96",
+      "option_b": "84",
+      "option_c": "88",
+      "option_d": "108",
+      "correct_option": "A"
+    },
+    {
+      "question": "Who is known as the Father of the Indian Constitution?",
+      "topic": "Polity",
+      "option_a": "Mahatma Gandhi",
+      "option_b": "Jawaharlal Nehru",
+      "option_c": "Dr. B. R. Ambedkar",
+      "option_d": "Rajendra Prasad",
+      "correct_option": "C"
+    },
+    {
+      "question": "What is the capital of France?",
+      "topic": "Geography",
+      "option_a": "Rome",
+      "option_b": "Madrid",
+      "option_c": "Berlin",
+      "option_d": "Paris",
+      "correct_option": "D"
+    },
+    {
+      "question": "Solve: 100 \u00f7 4 = ?",
+      "topic": "Mathematics",
+      "option_a": "20",
+      "option_b": "25",
+      "option_c": "30",
+      "option_d": "40",
+      "correct_option": "B"
+    },
+    {
+      "question": "Who was the first Prime Minister of India?",
+      "topic": "History",
+      "option_a": "Lal Bahadur Shastri",
+      "option_b": "Indira Gandhi",
+      "option_c": "Jawaharlal Nehru",
+      "option_d": "Rajiv Gandhi",
+      "correct_option": "C"
+    },
+    {
+      "question": "Which gas is most abundant in the Earth\u2019s atmosphere?",
+      "topic": "Science",
+      "option_a": "Oxygen",
+      "option_b": "Hydrogen",
+      "option_c": "Nitrogen",
+      "option_d": "Carbon Dioxide",
+      "correct_option": "C"
+    },
+    {
+      "question": "What is the square root of 144?",
+      "topic": "Mathematics",
+      "option_a": "10",
+      "option_b": "11",
+      "option_c": "12",
+      "option_d": "14",
+      "correct_option": "C"
+    },
+    {
+      "question": "Who wrote the national anthem of India?",
+      "topic": "Culture",
+      "option_a": "Bankim Chandra Chatterjee",
+      "option_b": "Rabindranath Tagore",
+      "option_c": "Sarojini Naidu",
+      "option_d": "Subhash Chandra Bose",
+      "correct_option": "B"
+    },
+    {
+      "question": "If a triangle has all sides equal, it is called?",
+      "topic": "Mathematics",
+      "option_a": "Right triangle",
+      "option_b": "Scalene triangle",
+      "option_c": "Isosceles triangle",
+      "option_d": "Equilateral triangle",
+      "correct_option": "D"
+    },
+    {
+      "question": "Which movement was started by Mahatma Gandhi in 1942?",
+      "topic": "History",
+      "option_a": "Non-Cooperation Movement",
+      "option_b": "Civil Disobedience Movement",
+      "option_c": "Quit India Movement",
+      "option_d": "Swadeshi Movement",
+      "correct_option": "C"
+    },
+    {
+      "question": "What is 15% of 200?",
+      "topic": "Mathematics",
+      "option_a": "20",
+      "option_b": "25",
+      "option_c": "30",
+      "option_d": "35",
+      "correct_option": "C"
+    },
+    {
+      "question": "Who is the head of the state in India?",
+      "topic": "Polity",
+      "option_a": "Prime Minister",
+      "option_b": "Chief Justice",
+      "option_c": "President",
+      "option_d": "Vice President",
+      "correct_option": "C"
+    }
+  ]
+}

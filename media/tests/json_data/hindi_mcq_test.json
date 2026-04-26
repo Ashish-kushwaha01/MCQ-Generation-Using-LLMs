@@ -1,0 +1,99 @@
+{
+  "title": "Hindi MCQ Test",
+  "description": "Basic Hindi language and grammar questions",
+  "subject": "Hindi",
+  "duration": 60,
+  "total_questions": 10,
+  "questions": [
+    {
+      "question": "हिंदी वर्णमाला में कुल कितने स्वर होते हैं?",
+      "topic": "व्याकरण",
+      "option_a": "10",
+      "option_b": "11",
+      "option_c": "12",
+      "option_d": "13",
+      "correct_option": "B"
+    },
+    {
+      "question": "'राम' शब्द किस लिंग का उदाहरण है?",
+      "topic": "व्याकरण",
+      "option_a": "स्त्रीलिंग",
+      "option_b": "पुल्लिंग",
+      "option_c": "नपुंसकलिंग",
+      "option_d": "इनमें से कोई नहीं",
+      "correct_option": "B"
+    },
+    {
+      "question": "'सुंदर' शब्द का विलोम क्या है?",
+      "topic": "शब्दज्ञान",
+      "option_a": "अच्छा",
+      "option_b": "बुरा",
+      "option_c": "कुरूप",
+      "option_d": "छोटा",
+      "correct_option": "C"
+    },
+    {
+      "question": "'जल' का पर्यायवाची शब्द क्या है?",
+      "topic": "शब्दज्ञान",
+      "option_a": "आग",
+      "option_b": "पानी",
+      "option_c": "हवा",
+      "option_d": "धरती",
+      "correct_option": "B"
+    },
+    {
+      "question": "'मैं स्कूल जाता हूँ' यह वाक्य किस काल का है?",
+      "topic": "व्याकरण",
+      "option_a": "भूतकाल",
+      "option_b": "वर्तमान काल",
+      "option_c": "भविष्य काल",
+      "option_d": "इनमें से कोई नहीं",
+      "correct_option": "B"
+    },
+    {
+      "question": "'फल' शब्द का बहुवचन क्या है?",
+      "topic": "व्याकरण",
+      "option_a": "फलों",
+      "option_b": "फलें",
+      "option_c": "फल",
+      "option_d": "फला",
+      "correct_option": "A"
+    },
+    {
+      "question": "'खुशी' शब्द का विलोम क्या है?",
+      "topic": "शब्दज्ञान",
+      "option_a": "आनंद",
+      "option_b": "दुख",
+      "option_c": "मुस्कान",
+      "option_d": "हंसी",
+      "correct_option": "B"
+    },
+    {
+      "question": "'राम ने खाना खाया' में 'ने' कौन सा कारक है?",
+      "topic": "व्याकरण",
+      "option_a": "करण कारक",
+      "option_b": "सम्बन्ध कारक",
+      "option_c": "कर्ता कारक",
+      "option_d": "अपादान कारक",
+      "correct_option": "C"
+    },
+    {
+      "question": "'किताब' शब्द किस लिंग का है?",
+      "topic": "व्याकरण",
+      "option_a": "पुल्लिंग",
+      "option_b": "स्त्रीलिंग",
+      "option_c": "नपुंसकलिंग",
+      "option_d": "इनमें से कोई नहीं",
+      "correct_option": "B"
+    },
+    {
+      "question": "'तेज' शब्द का पर्यायवाची क्या है?",
+      "topic": "शब्दज्ञान",
+      "option_a": "धीमा",
+      "option_b": "मंद",
+      "option_c": "तीव्र",
+      "option_d": "कम",
+      "correct_option": "C"
+    }
+  ]
+}

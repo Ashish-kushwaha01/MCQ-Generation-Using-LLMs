@@ -21,8 +21,12 @@ from .pdf_logic import (
     get_context,
     get_weak_context,
     generate_detailed_summary,
-    delete_user_faiss_index
+    delete_user_faiss_index,
+    load_vector_store, # Added
+    get_llm # Added
 )
+from langchain_core.prompts import PromptTemplate # Added
+from langchain_core.output_parsers import StrOutputParser # Added
 from .models import PDFDocument, MCQSession, MCQQuestion, UserAnswer, Feedback
 
 from reportlab.lib.pagesizes import letter
@@ -131,6 +135,68 @@ def download_mcqs_pdf(request):
     except Exception as e:
         print(f"Error generating PDF for session {session_id}: {e}")
         return JsonResponse({'status': 'error', 'message': f'Error generating PDF: {str(e)}'}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+@login_required(login_url='account:login')
+def chatbot_view(request):
+    user = request.user
+    try:
+        data = json.loads(request.body)
+        user_question = data.get('question')
+        session_id = data.get('session_id') # Get session_id from the request
+
+        if not user_question:
+            return JsonResponse({'status': 'error', 'message': 'No question provided'}, status=400)
+        
+        # Retrieve the relevant MCQ session to get context
+        mcq_session = None
+        if session_id:
+            try:
+                mcq_session = MCQSession.objects.get(session_id=session_id, user=user)
+            except MCQSession.DoesNotExist:
+                pass # Continue without session-specific context if not found
+
+        # Use the ask_question_json from pdf_logic to get a response
+        # This function should ideally take the user's question and the relevant context
+        # For now, we'll assume it can use the user's FAISS index directly
+        
+        # Load user-specific vector store
+        try:
+            vector_store = load_vector_store(user.id)
+        except FileNotFoundError:
+            return JsonResponse({'status': 'error', 'message': 'No PDFs processed yet. Please upload and process PDFs to use the chatbot.'}, status=400)
+
+        # Get context from the vector store based on the user's question
+        retrieved_docs = vector_store.similarity_search(user_question, k=4)
+        context_text = "\n\n".join([doc.page_content for doc in retrieved_docs])
+
+        # Generate response using Gemini
+        llm = get_llm()
+        prompt_template = PromptTemplate.from_template(
+            """
+            You are a helpful AI assistant. Answer the following question based on the provided context.
+            If you cannot find the answer in the context, politely state that you don't have enough information.
+
+            Context:
+            {context}
+
+            Question: {question}
+            Answer:
+            """
+        )
+        chain = prompt_template | llm | StrOutputParser()
+        
+        ai_response = chain.invoke({"context": context_text, "question": user_question})
+
+        return JsonResponse({'status': 'success', 'response': ai_response})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        print(f"Chatbot error: {e}")
+        return JsonResponse({'status': 'error', 'message': f'An unexpected error occurred: {str(e)}'}, status=500)
 
 
 @login_required(login_url='account:login')

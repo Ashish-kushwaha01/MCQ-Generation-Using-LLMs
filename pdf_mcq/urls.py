@@ -25,4 +25,5 @@ urlpatterns = [
     path('summarize-topic/', views.summarize_topic_view, name='summarize_topic'),
     path('download-mcqs-pdf/', views.download_mcqs_pdf, name='download_mcqs_pdf'),
     path('submit-feedback/', views.submit_feedback, name='submit_feedback'),
+    path('chatbot/', views.chatbot_view, name='chatbot'),
 ]

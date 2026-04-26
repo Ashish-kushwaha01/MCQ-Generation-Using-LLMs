@@ -77,6 +77,8 @@
 
 {% block content %}
 
+<script src="{% static 'js/pdf_mcq_generator.js' %}"></script>
+
 <div class="mcq-split-container">
     
     <!-- LEFT SIDEBAR - Chat History -->
@@ -234,6 +236,7 @@
                     <i class="fas fa-list"></i>
                     MCQs ({{ current_mcqs|length }} Questions)
                 </h2>
+                <input type="hidden" id="currentSessionId" value="{{ current_session.session_id }}">
                 <button class="btn-submit-test" id="submitTestBtn" onclick="submitTest()">
                     <i class="fas fa-check-circle"></i>
                     Submit Test
@@ -411,6 +414,36 @@
                 <span>Chat History</span>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- Chatbot Icon -->
+<button id="chatbotIcon" class="chatbot-icon" style="display: none;">
+    <i class="fas fa-comment-dots"></i>
+</button>
+
+<!-- Chatbot Window -->
+<div id="chatbotWindow" class="chatbot-window" style="display: none;">
+    <div class="resize-handle top-left"></div>
+    <div class="resize-handle top-right"></div>
+    <div class="resize-handle bottom-left"></div>
+    <div class="resize-handle bottom-right"></div>
+    <div class="resize-handle top"></div>
+    <div class="resize-handle bottom"></div>
+    <div class="resize-handle left"></div>
+    <div class="resize-handle right"></div>
+    <div class="chatbot-header">
+        <h3>PDF Chatbot</h3>
+        <button class="chatbot-close-btn" id="chatbotCloseBtn">&times;</button>
+    </div>
+    <div class="chatbot-body" id="chatbotBody">
+        <div class="chat-message bot-message">
+            Hello! Ask me anything about your PDFs or MCQs.
+        </div>
+    </div>
+    <div class="chatbot-input-area">
+        <input type="text" id="chatbotInput" placeholder="Ask a question...">
+        <button id="chatbotSendBtn"><i class="fas fa-paper-plane"></i></button>
     </div>
 </div>
 
