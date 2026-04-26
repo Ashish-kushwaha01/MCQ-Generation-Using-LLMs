@@ -23,7 +23,7 @@ from .pdf_logic import (
     generate_detailed_summary,
     delete_user_faiss_index
 )
-from .models import PDFDocument, MCQSession, MCQQuestion, UserAnswer
+from .models import PDFDocument, MCQSession, MCQQuestion, UserAnswer, Feedback
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, KeepTogether
@@ -433,6 +433,39 @@ def submit_answers(request):
         except Exception as e:
             print(f"Error saving answers: {e}")
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required(login_url='account:login')
+@csrf_exempt
+@require_http_methods(["POST"])
+def submit_feedback(request):
+    """API endpoint to submit user feedback"""
+    try:
+        user = request.user
+        data = json.loads(request.body)
+
+        quality_rating = data.get('quality_rating')
+        relevance_rating = data.get('relevance_rating')
+        description = data.get('description', '')
+
+        # Validate data (optional, but good practice)
+        if not quality_rating and not relevance_rating and not description:
+            return JsonResponse({'status': 'error', 'message': 'No feedback data provided'}, status=400)
+
+        Feedback.objects.create(
+            user=user,
+            quality_rating=quality_rating if quality_rating else None,
+            relevance_rating=relevance_rating if relevance_rating else None,
+            description=description
+        )
+
+        return JsonResponse({'status': 'success', 'message': 'Feedback submitted successfully'})
+
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        print(f"Error submitting feedback: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
 

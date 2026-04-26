@@ -24,4 +24,5 @@ urlpatterns = [
     path('generate-by-topic/', views.generate_by_topic, name='generate_by_topic'),
     path('summarize-topic/', views.summarize_topic_view, name='summarize_topic'),
     path('download-mcqs-pdf/', views.download_mcqs_pdf, name='download_mcqs_pdf'),
+    path('submit-feedback/', views.submit_feedback, name='submit_feedback'),
 ]

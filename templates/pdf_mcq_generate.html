@@ -3,6 +3,12 @@
 
 {% block title %}PDF MCQ Generator{% endblock %}
 
+
+
+
+
+
+
 {% block css %}
 <link rel="stylesheet" type="text/css" href="{% static 'css/pdf_mcq_generator.css' %}">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" integrity="sha512-SnH5WK+bZxgPHs44uWIX+LLJAJ9/2PkPKZ5QiAj6Ta86w+fsb2TkcmfRyVX3pBnMFcV7oQPJkl9QevSCWr3W6A==" crossorigin="anonymous" referrerpolicy="no-referrer" />
@@ -315,6 +321,10 @@
                     <i class="fas fa-download"></i>
                     Download MCQs (PDF)
                 </button>
+                <button class="btn-feedback" onclick="openFeedbackModal()">
+                    <i class="fas fa-comment-alt"></i>
+                    Feedback/Review
+                </button>
             </div>
         </div>
         {% elif current_session_data %}
@@ -484,6 +494,47 @@
             <button class="btn-generate" onclick="generateMcqsForTopic()">
                 <i class="fas fa-magic"></i> Generate
             </button>
+        </div>
+    </div>
+</div>
+
+<!-- Feedback Modal -->
+<div class="feedback-modal" id="feedbackModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3><i class="fas fa-comment-alt"></i> Provide Feedback</h3>
+            <button class="modal-close" onclick="closeFeedbackModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <form id="feedbackForm">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="feedbackQuestion1">How would you rate the MCQ generation quality?</label>
+                    <select id="feedbackQuestion1" name="quality_rating" required>
+                        <option value="">Select a rating</option>
+                        <option value="5">Excellent</option>
+                        <option value="4">Good</option>
+                        <option value="3">Average</option>
+                        <option value="2">Poor</option>
+                        <option value="1">Very Poor</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="feedbackQuestion2">Was the content relevant to the uploaded PDF?</label>
+                    <select id="feedbackQuestion2" name="relevance_rating" required>
+                        <option value="">Select an option</option>
+                        <option value="yes">Yes</option>
+                        <option value="no">No</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="feedbackDescription">Any additional comments or suggestions?</label>
+                    <textarea id="feedbackDescription" name="description" rows="5"></textarea>
+                </div>
+                <button type="submit" class="btn-submit-feedback">
+                    <i class="fas fa-paper-plane"></i> Submit Feedback
+                </button>
+            </form>
         </div>
     </div>
 </div>
@@ -989,6 +1040,16 @@ function downloadMcqsAsPdf() {
             });
     }
 
+    // Feedback Modal Functions
+    function openFeedbackModal() {
+        document.getElementById('feedbackModal').style.display = 'flex';
+    }
+
+    function closeFeedbackModal() {
+        document.getElementById('feedbackModal').style.display = 'none';
+        document.getElementById('feedbackForm').reset(); // Clear form on close
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
     // File input change event
     if (pdfInput) {
@@ -1111,6 +1172,38 @@ function downloadMcqsAsPdf() {
 
     document.getElementById('questionForm')?.addEventListener('submit', function() {
         document.getElementById('generateBtn')?.classList.add('loading');
+    });
+
+    document.getElementById('feedbackForm')?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const form = e.target;
+        const formData = new FormData(form);
+        const jsonData = {};
+        formData.forEach((value, key) => {
+            jsonData[key] = value;
+        });
+
+        fetch("{% url 'pdf_mcq:submit_feedback' %}", { // This URL needs to be defined
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify(jsonData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                showNotification('Thank you for your feedback!', 'success');
+                closeFeedbackModal();
+            } else {
+                showNotification('Error submitting feedback: ' + data.message, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error submitting feedback:', error);
+            showNotification('Error submitting feedback. Please try again.', 'error');
+        });
     });
 
     initializeTest();

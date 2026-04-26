@@ -96,3 +96,15 @@ class UserAnswer(models.Model):
     def __str__(self):
         status = "✓" if self.is_correct else "✗" if self.selected_answer else "○"
         return f"{status} {self.user.username} - Q{self.question.question_number}"
+
+
+class Feedback(models.Model):
+    """Store user feedback on MCQ generation"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='feedback')
+    quality_rating = models.IntegerField(choices=[(1, '1 - Very Poor'), (2, '2 - Poor'), (3, '3 - Average'), (4, '4 - Good'), (5, '5 - Excellent')], null=True, blank=True)
+    relevance_rating = models.CharField(max_length=3, choices=[('yes', 'Yes'), ('no', 'No')], null=True, blank=True)
+    description = models.TextField(blank=True, null=True)
+    submitted_at = models.DateTimeField(default=timezone.now)
+
+    def __str__(self):
+        return f"Feedback from {self.user.username} on {self.submitted_at.strftime('%Y-%m-%d')}"

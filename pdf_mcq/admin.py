@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import PDFDocument, MCQSession, MCQQuestion, UserAnswer
+from .models import PDFDocument, MCQSession, MCQQuestion, UserAnswer, Feedback
 
 class PDFDocumentAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'file_name', 'file_size', 'uploaded_at')
@@ -29,8 +29,15 @@ class UserAnswerAdmin(admin.ModelAdmin):
     search_fields = ('user__username', 'question__question_text')
     readonly_fields = ('answered_at',)
 
+class FeedbackAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user', 'quality_rating', 'relevance_rating', 'submitted_at')
+    list_filter = ('user', 'quality_rating', 'relevance_rating', 'submitted_at')
+    search_fields = ('user__username', 'description')
+    readonly_fields = ('submitted_at',)
+
 # Register all models
 admin.site.register(PDFDocument, PDFDocumentAdmin)
 admin.site.register(MCQSession, MCQSessionAdmin)
 admin.site.register(MCQQuestion, MCQQuestionAdmin)
 admin.site.register(UserAnswer, UserAnswerAdmin)
+admin.site.register(Feedback, FeedbackAdmin)
