@@ -8,7 +8,8 @@ class Test_Upload(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField()
     subject = models.CharField(max_length=200,null=True,blank=True)
-    pdf = models.FileField(upload_to='tests/pdfs/',null=True,blank=True)
+    json_file = models.FileField(upload_to='tests/json_data/',null=True,blank=True)
+    json_data = models.JSONField(null=True, blank=True, help_text="Paste JSON content directly here, or upload a JSON file above.")
     duration = models.IntegerField()  # duration in minutes
     total_questions = models.IntegerField()
     test_slug = models.SlugField(unique=True, blank=True, null=True)
@@ -19,6 +20,7 @@ class Test_Upload(models.Model):
 class Question(models.Model):
     test = models.ForeignKey(Test_Upload, on_delete=models.CASCADE, related_name='questions')
     question = models.TextField()
+    topic = models.CharField(max_length=255, blank=True, null=True) # New field for question topic
     option_a = models.CharField(max_length=200)
     option_b = models.CharField(max_length=200)
     option_c = models.CharField(max_length=200)

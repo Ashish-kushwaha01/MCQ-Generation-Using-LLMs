@@ -1,9 +1,10 @@
 from django.shortcuts import get_object_or_404, render,redirect
+from django.contrib import messages
 from .models import Test_Upload, UserAnswer, UserTestAttempt
 from django.http import HttpResponse 
 from .models import Question
 from django.conf import settings
-from .utils import extract_from_pdf
+from .utils import extract_from_json
 from django.views.decorators.cache import never_cache
 from django.http import JsonResponse
 from django.utils import timezone
@@ -33,12 +34,16 @@ def test_page(request):
 def general_info(request, slug):
     test = get_object_or_404(Test_Upload, test_slug=slug)
 
-    # extract ONLY if questions don't exist
-    if test.questions.count() == 0 and test.pdf:
-        extract_from_pdf(test.pdf.path, test)
+    # extract ONLY if questions don't exist and either json_file or json_data is present
+    if test.questions.count() == 0 and (test.json_file or test.json_data):
+        extract_from_json(test)
+        # After extraction, check if questions were actually created
+        if test.questions.count() == 0:
+            messages.error(request, "No questions could be extracted from the provided JSON. Please ensure the JSON format is correct.")
+            return redirect('test_all:test_page') # Redirect back to test list or a suitable page
 
     return render(request, 'tests/general_info.html', {
-        'pdf': test
+        'test': test # Changed 'pdf' to 'test' for consistency
     })
     
     

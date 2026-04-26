@@ -1,6 +1,8 @@
 from django.contrib import admin
+from django.core.exceptions import ValidationError # Import ValidationError
 from .models import Test_Upload,UserTestAttempt,UserAnswer
 from .models import Question
+from .forms import TestUploadForm # Import the custom form
 
 class QuestionInline(admin.TabularInline):
     model = Question
@@ -9,19 +11,23 @@ class QuestionInline(admin.TabularInline):
 # Register your models here.
 
 class TestUploadAdmin(admin.ModelAdmin):
+    form = TestUploadForm # Use the custom form
     list_display = (
         'title',
+        'subject', # Added subject to list display
         'duration',
         'total_questions',
-        'test_slug'
+        'test_slug',
+        'json_file', # Display the JSON file
+        'json_data', # Display the JSON data field
     )
-    prepopulated_fields = {'test_slug': ('title',)}
+    fields = ('json_file', 'json_data', 'test_slug') # Only show these fields for input
     inlines = [QuestionInline] 
 
-
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ('question', 'test', 'correct_option')
-    list_filter = ('test',)
+    list_display = ('question', 'test', 'topic', 'correct_option') # Added topic
+    list_filter = ('test', 'topic',) # Added topic
+
     
     
 class UserTestAttemptAdmin(admin.ModelAdmin):
