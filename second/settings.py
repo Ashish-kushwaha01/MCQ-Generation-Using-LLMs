@@ -204,6 +204,9 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+EMAIL_TIMEOUT = 10
+
 # CSRF and Security Settings
 if not DEBUG:
     # Force HTTPS
@@ -218,8 +221,9 @@ if not DEBUG:
     # CSRF trusted origins for Render
     # Replace 'your-app-name' with the actual name of your Render web service
     CSRF_TRUSTED_ORIGINS = [
+        'mcq-generation-using-llms.onrender.com',
         'https://*.onrender.com',
-        'https://your-app-name.onrender.com',
+        
     ]
 else:
     # Development settings for CSRF and Security
