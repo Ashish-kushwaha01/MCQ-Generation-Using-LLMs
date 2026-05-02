@@ -4,6 +4,7 @@ import json
 import warnings
 import shutil # New import for deleting directories
 from dotenv import load_dotenv
+import uuid # Added for unique temporary directory names
 
 from pypdf import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -23,17 +24,19 @@ load_dotenv()
 
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-
 # Configure genai
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
-    print(f"Google API configured successfully")
 else:
     print("WARNING: GOOGLE_API_KEY not found in environment variables")
 
 # -------- FAISS INDEX MANAGEMENT --------
+# WARNING: FAISS index will be stored locally within the serverless function's ephemeral filesystem.
+# This means the index will be rebuilt on every cold start, leading to significant delays
+# for chatbot and summarization features. For persistent storage, a dedicated object storage
+# solution (like AWS S3) is recommended.
 def get_faiss_index_path(user_id):
-    """Constructs the path for a user's FAISS index."""
+    """Constructs the local path for a user's FAISS index."""
     return f"faiss_index_{user_id}"
 
 def delete_user_faiss_index(user_id):
@@ -42,12 +45,10 @@ def delete_user_faiss_index(user_id):
     if os.path.exists(index_path):
         try:
             shutil.rmtree(index_path)
-            print(f"Successfully deleted FAISS index for user {user_id} at {index_path}")
         except Exception as e:
-            print(f"Error deleting FAISS index for user {user_id}: {e}")
             raise
     else:
-        print(f"No FAISS index found for user {user_id} at {index_path}")
+        pass
 
 # -------- PDF TEXT EXTRACTION --------
 def get_pdf_text(pdf_files):
@@ -75,21 +76,26 @@ def get_text_chunks(text):
 
 
 # -------- VECTOR STORE --------
-def create_vector_store(chunks, user_id=None):
-    """Create user-specific vector store using Gemini embeddings"""
+def create_vector_store(chunks_with_metadata, user_id=None):
+    """Create user-specific vector store using Gemini embeddings with metadata, saving locally."""
     try:
-        # Use the correct embedding model from your API
         embeddings = GoogleGenerativeAIEmbeddings(
-            model="gemini-embedding-001",  # This is available in your API
+            model="gemini-embedding-001",
             google_api_key=GOOGLE_API_KEY
         )
         
-        db = FAISS.from_texts(chunks, embeddings)
+        # Extract texts and metadata for FAISS
+        texts = [item['text'] for item in chunks_with_metadata]
+        metadatas = [item['metadata'] for item in chunks_with_metadata]
         
-        # Save user-specific index
-        index_name = f"faiss_index_{user_id}" if user_id else "faiss_index"
-        db.save_local(index_name)
-        print(f"Vector store created successfully: {index_name}")
+        db = FAISS.from_texts(texts, embeddings, metadatas=metadatas)
+        
+        index_name_prefix = get_faiss_index_path(user_id)
+        
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(index_name_prefix) or '.', exist_ok=True)
+        db.save_local(index_name_prefix)
+        
         return db
         
     except Exception as e:
@@ -98,24 +104,23 @@ def create_vector_store(chunks, user_id=None):
 
 
 def load_vector_store(user_id=None):
-    """Load user-specific vector store"""
+    """Load user-specific vector store from local directory."""
     try:
         embeddings = GoogleGenerativeAIEmbeddings(
             model="models/gemini-embedding-001",  # Use the same model
             google_api_key=GOOGLE_API_KEY
         )
         
-        index_name = f"faiss_index_{user_id}" if user_id else "faiss_index"
+        index_name_prefix = get_faiss_index_path(user_id)
         
-        if not os.path.exists(index_name):
-            raise FileNotFoundError(f"Vector store {index_name} not found. Please upload PDFs first.")
+        if not os.path.exists(index_name_prefix):
+            raise FileNotFoundError(f"Vector store {index_name_prefix} not found. Please upload PDFs first.")
         
         db = FAISS.load_local(
-            index_name,
+            index_name_prefix,
             embeddings,
             allow_dangerous_deserialization=True
         )
-        print(f"Vector store loaded successfully: {index_name}")
         return db
         
     except Exception as e:
@@ -201,11 +206,9 @@ Generate {mcq_count} MCQs. REMEMBER: Each question MUST have a HIGHLY SPECIFIC t
             # Directly parse the result, as parse_json_mcqs is now robust
             mcqs = parse_json_mcqs(result)
             if mcqs:
-                print(f"Successfully generated {len(mcqs)} MCQs after retry attempt.")
                 return result # Return raw result for further processing if needed
             
         except Exception as e:
-            print(f"Error generating MCQs (retry attempt): {e}")
             continue # Try again
             
     raise Exception("Failed to generate valid MCQs after multiple attempts.")
@@ -237,7 +240,6 @@ def parse_json_mcqs(json_response):
             mcqs_data = [data] if data else [] # Wrap single object in a list if it's an MCQ
         
         if not mcqs_data:
-            print("No MCQs found in JSON after parsing.")
             return []
         
         mcqs = []
@@ -264,10 +266,8 @@ def parse_json_mcqs(json_response):
                         break
 
                 topic = item.get('topic')
-                print(f"DEBUG (parse_json_mcqs): Raw topic from LLM: '{topic}' (Type: {type(topic)})")
                 if not topic or topic.strip() == "":
                     topic = "Topic Analysis Required"
-                print(f"DEBUG (parse_json_mcqs): Processed topic: '{topic}'")
                 
                 mcq = {
                     'number': item.get('question_number', idx + 1),
@@ -281,24 +281,15 @@ def parse_json_mcqs(json_response):
                 mcqs.append(mcq)
                 
             except Exception as e:
-                print(f"Error processing individual MCQ {idx}: {e}")
                 continue
         
-        print(f"Parsed MCQs (with topics): {[m['topic'] for m in mcqs]}")
-        print(f"Successfully parsed {len(mcqs)} MCQs.")
         return mcqs
         
     except json.JSONDecodeError as e:
-        print(f"JSON Decode Error: {e}")
-        print(f"Raw response from LLM (for debug): {json_response}")
         return []
     except ValueError as e:
-        print(f"Parsing Error: {e}")
-        print(f"Raw response from LLM (for debug): {json_response}")
         return []
     except Exception as e:
-        print(f"Unexpected error in parse_json_mcqs: {e}")
-        print(f"Raw response from LLM (for debug): {json_response}")
         return []
 
 
@@ -329,28 +320,21 @@ def ask_question_json(question, mcq_count, user_id=None, specific_topic=None):
         if not GOOGLE_API_KEY:
             raise Exception("GOOGLE_API_KEY not found. Please check your .env file.")
         
-        print(f"Loading vector store for user {user_id}...")
         db = load_vector_store(user_id=user_id)
         
         # Search for relevant content
         search_query = specific_topic if specific_topic else question
-        print(f"Searching for content related to: {search_query}")
         docs = db.similarity_search(search_query, k=6)
         context = "\n\n".join(doc.page_content for doc in docs)
         
         if not context or len(context.strip()) < 100:
             raise Exception("Not enough content in PDFs to generate questions. Please upload PDFs with more content.")
         
-        print(f"Context length: {len(context)} characters")
-        print(f"Generating {mcq_count} MCQs...")
-        
         json_response = generate_mcq_json(context, mcq_count, specific_topic)
         mcqs = parse_json_mcqs(json_response)
         
         if not mcqs:
             raise Exception("Failed to parse MCQs from LLM response. Please try again.")
-        
-        print(f"Successfully generated {len(mcqs)} MCQs")
         
         return {
             'raw_response': json_response,
@@ -361,7 +345,6 @@ def ask_question_json(question, mcq_count, user_id=None, specific_topic=None):
     except FileNotFoundError as e:
         raise Exception("Please upload and process PDFs first before generating MCQs.")
     except Exception as e:
-        print(f"Error in ask_question_json: {e}")
         raise
 
 
@@ -371,19 +354,14 @@ def generate_detailed_summary(topic, user_id=None):
         if not GOOGLE_API_KEY:
             raise Exception("GOOGLE_API_KEY not found. Please check your .env file.")
 
-        print(f"Loading vector store for user {user_id} to summarize topic: {topic}...")
         db = load_vector_store(user_id=user_id)
 
         # Retrieve relevant context for the topic
-        print(f"Retrieving context for topic: {topic}")
         docs = db.similarity_search(topic, k=10) # Retrieve more documents for a detailed summary
         context = "\n\n".join(doc.page_content for doc in docs)
 
         if not context or len(context.strip()) < 200: # Require more context for a detailed summary
             raise Exception("Not enough relevant content in PDFs to generate a detailed summary for this topic. Please upload PDFs with more content related to the topic.")
-
-        print(f"Context length for summary: {len(context)} characters")
-        print(f"Generating detailed summary for topic: {topic}...")
 
         llm = get_llm()
         prompt = PromptTemplate.from_template(
@@ -405,7 +383,6 @@ You are an expert summarizer. Your task is to provide a detailed and comprehensi
         if not summary or len(summary.strip()) < 50: # Minimum length for a useful summary
             raise Exception("Generated summary is too short or empty. Please try again with more relevant content.")
 
-        print(f"Successfully generated summary for topic: {topic}")
         return summary
 
     except FileNotFoundError as e:

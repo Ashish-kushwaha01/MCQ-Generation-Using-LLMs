@@ -26,12 +26,18 @@ FAISS_INDEX_PATH = BASE_DIR / "faiss_index"
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-ly)*5_4%5ob%&$=6a8cclvfau(^!e5moxbcw_ncufmpg)bt35j"
+SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-ly)*5_4%5ob%&$=6a8cclvfau(^!e5moxbcw_ncufmpg)bt35j")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DJANGO_DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split(",")
+
+if DEBUG:
+    # If in debug mode, always allow localhost and 127.0.0.1
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1"] + ALLOWED_HOSTS
+    # Remove any empty strings that might result from split(",")
+    ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]
 
 
 # Application definition
@@ -43,6 +49,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    'whitenoise.runserver_nostatic', # For WhiteNoise in development
+    'cloudinary_storage', # For Cloudinary media storage
+    'cloudinary', # For Cloudinary
     'account',
     'test_all',
     'pdf_mcq',
@@ -52,6 +61,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware", # Add WhiteNoise middleware
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -80,14 +90,16 @@ TEMPLATES = [
 WSGI_APPLICATION = "second.wsgi.application"
 
 
+import dj_database_url
+
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": dj_database_url.config(
+        default=os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3'),
+        conn_max_age=600
+    )
 }
 
 
@@ -126,10 +138,38 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
-STATICFILES_DIRS=[BASE_DIR/'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles' # Collect static files here
+STATICFILES_DIRS = [BASE_DIR / 'static']
 
-MEDIA_ROOT = BASE_DIR / 'media'
-MEDIA_URL = '/media/'
+# Configure WhiteNoise for static files
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
+# Default File Storage for Media
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+MEDIA_URL = '/media/' # Cloudinary handles the actual URL
+MEDIA_ROOT = BASE_DIR / 'media' # This will be used for local development if Cloudinary is not configured
+
+# Cloudinary Configuration for Media Files
+CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME')
+CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY')
+CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET')
+
+if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
+    import cloudinary
+    import cloudinary.uploader
+    import cloudinary.api
+    cloudinary.config(
+        cloud_name=CLOUDINARY_CLOUD_NAME,
+        api_key=CLOUDINARY_API_KEY,
+        api_secret=CLOUDINARY_API_SECRET
+    )
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
