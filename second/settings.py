@@ -26,12 +26,21 @@ FAISS_INDEX_PATH = BASE_DIR / "faiss_index"
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-ly)*5_4%5ob%&$=6a8cclvfau(^!e5moxbcw_ncufmpg)bt35j"
+SECRET_KEY = os.environ.get("SECRET_KEY", "a-very-insecure-default-key-DO-NOT-USE-IN-PRODUCTION")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get("DJANGO_DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = []
+# ALLOWED_HOSTS configuration
+if DEBUG:
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+else:
+    # In production, ALLOWED_HOSTS must be explicitly set via environment variable
+    ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS", "").split(",") if host.strip()]
+    if not ALLOWED_HOSTS:
+        # Fallback for production if ALLOWED_HOSTS is not set, though it should be
+        print("WARNING: ALLOWED_HOSTS is not set in production environment!")
+        ALLOWED_HOSTS = [] # Django will raise an error if empty and DEBUG=False
 
 
 # Application definition
@@ -43,6 +52,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    'whitenoise.runserver_nostatic', # For WhiteNoise in development
+    'cloudinary_storage', # For Cloudinary media storage
+    'cloudinary', # For Cloudinary
     'account',
     'test_all',
     'pdf_mcq',
@@ -52,6 +64,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware", # Add WhiteNoise middleware
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -69,9 +82,12 @@ TEMPLATES = [
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
+                "django.template.context_processors.debug",
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "django.template.context_processors.media",
+                "django.template.context_processors.static",
             ],
         },
     },
@@ -80,15 +96,32 @@ TEMPLATES = [
 WSGI_APPLICATION = "second.wsgi.application"
 
 
+import dj_database_url
+
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+# Database Configuration with Connection Pooling
+database_config = dj_database_url.config(
+    default=os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3'),
+    conn_max_age=600,
+    conn_health_checks=True,
+)
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": database_config
 }
+
+# Connection Pool Settings for PostgreSQL
+if 'postgresql' in database_config.get('ENGINE', ''):
+    DATABASES['default']['OPTIONS'] = {
+        'connect_timeout': 10,
+        'options': '-c statement_timeout=30000',
+        'keepalives': 1,
+        'keepalives_idle': 30,
+        'keepalives_interval': 10,
+        'keepalives_count': 5,
+    }
 
 
 # Password validation
@@ -126,10 +159,38 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
-STATICFILES_DIRS=[BASE_DIR/'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles' # Collect static files here
+STATICFILES_DIRS = [BASE_DIR / 'static']
 
-MEDIA_ROOT = BASE_DIR / 'media'
-MEDIA_URL = '/media/'
+# Configure WhiteNoise for static files
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
+
+# Default File Storage for Media
+DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+MEDIA_URL = '/media/' # Cloudinary handles the actual URL
+MEDIA_ROOT = BASE_DIR / 'media' # This will be used for local development if Cloudinary is not configured
+
+# Cloudinary Configuration for Media Files
+CLOUDINARY_CLOUD_NAME = os.environ.get('CLOUDINARY_CLOUD_NAME')
+CLOUDINARY_API_KEY = os.environ.get('CLOUDINARY_API_KEY')
+CLOUDINARY_API_SECRET = os.environ.get('CLOUDINARY_API_SECRET')
+
+if CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET:
+    import cloudinary
+    import cloudinary.uploader
+    import cloudinary.api
+    cloudinary.config(
+        cloud_name=CLOUDINARY_CLOUD_NAME,
+        api_key=CLOUDINARY_API_KEY,
+        api_secret=CLOUDINARY_API_SECRET
+    )
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
@@ -138,6 +199,45 @@ EMAIL_USE_TLS = True
 
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+
+# CSRF and Security Settings
+if not DEBUG:
+    # Force HTTPS
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    
+    # Security headers
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # CSRF trusted origins for Render
+    # Replace 'your-app-name' with the actual name of your Render web service
+    CSRF_TRUSTED_ORIGINS = [
+        'https://*.onrender.com',
+        'https://your-app-name.onrender.com',
+    ]
+else:
+    # Development settings for CSRF and Security
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://0.0.0.0:8000",
+    ]
+    SECURE_SSL_REDIRECT = False
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+
+# Session Configuration for Remote Database
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+# Database connection retry settings
+DATABASE_CONNECTION_RETRY = True
+DATABASE_CONNECTION_MAX_AGE = 600
 
 # # 1. Session expires when browser closes (optional)
 

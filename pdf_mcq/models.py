@@ -2,10 +2,12 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 import json
+from cloudinary_storage.storage import RawMediaCloudinaryStorage
 
 class PDFDocument(models.Model):
     """Store uploaded PDF files"""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='pdf_documents')
+    file = models.FileField(upload_to='user_pdfs/', null=True, blank=True, storage=RawMediaCloudinaryStorage())
     file_name = models.CharField(max_length=255)
     file_size = models.BigIntegerField()
     uploaded_at = models.DateTimeField(default=timezone.now)

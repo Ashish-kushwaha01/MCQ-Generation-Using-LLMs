@@ -130,10 +130,8 @@ def download_mcqs_pdf(request):
         return response
 
     except MCQSession.DoesNotExist:
-        print(f"MCQ Session {session_id} not found for user {user.id}")
         return JsonResponse({'status': 'error', 'message': 'MCQ Session not found'}, status=404)
     except Exception as e:
-        print(f"Error generating PDF for session {session_id}: {e}")
         return JsonResponse({'status': 'error', 'message': f'Error generating PDF: {str(e)}'}, status=500)
 
 
@@ -146,30 +144,36 @@ def chatbot_view(request):
         data = json.loads(request.body)
         user_question = data.get('question')
         session_id = data.get('session_id') # Get session_id from the request
+        pdf_ids = data.get('pdf_ids', []) # Get pdf_ids from the request
 
         if not user_question:
             return JsonResponse({'status': 'error', 'message': 'No question provided'}, status=400)
         
-        # Retrieve the relevant MCQ session to get context
-        mcq_session = None
+        # Determine which PDFs to use for context
+        target_pdf_file_names = []
         if session_id:
             try:
                 mcq_session = MCQSession.objects.get(session_id=session_id, user=user)
+                target_pdf_file_names = [pdf.file_name for pdf in mcq_session.pdfs.all()]
             except MCQSession.DoesNotExist:
-                pass # Continue without session-specific context if not found
-
-        # Use the ask_question_json from pdf_logic to get a response
-        # This function should ideally take the user's question and the relevant context
-        # For now, we'll assume it can use the user's FAISS index directly
+                # If session not found, proceed without session-specific PDFs
+                pass
+        elif pdf_ids: # Fallback to pdf_ids if no session_id
+            target_pdfs = PDFDocument.objects.filter(id__in=pdf_ids, user=user)
+            target_pdf_file_names = [pdf.file_name for pdf in target_pdfs]
         
         # Load user-specific vector store
         try:
             vector_store = load_vector_store(user.id)
         except FileNotFoundError:
-            return JsonResponse({'status': 'error', 'message': 'No PDFs processed yet. Please upload and process PDFs to use the chatbot.'}, status=400)
+            return JsonResponse({'status': 'error', 'message': 'No PDFs processed yet.'}, status=400)
 
-        # Get context from the vector store based on the user's question
+        # Get context from the vector store, filtered by target_pdf_file_names
         retrieved_docs = vector_store.similarity_search(user_question, k=4)
+        
+        if target_pdf_file_names:
+            retrieved_docs = [doc for doc in retrieved_docs if doc.metadata.get('source') in target_pdf_file_names]
+            
         context_text = "\n\n".join([doc.page_content for doc in retrieved_docs])
 
         # Generate response using Gemini
@@ -195,7 +199,7 @@ def chatbot_view(request):
     except json.JSONDecodeError:
         return JsonResponse({'status': 'error', 'message': 'Invalid JSON'}, status=400)
     except Exception as e:
-        print(f"Chatbot error: {e}")
+
         return JsonResponse({'status': 'error', 'message': f'An unexpected error occurred: {str(e)}'}, status=500)
 
 
@@ -212,8 +216,15 @@ def summarize_topic_view(request):
     try:
         mcq_session = MCQSession.objects.get(session_id=session_id, user=user)
         
+        # Get the PDF documents associated with this session
+        session_pdf_file_names = [pdf.file_name for pdf in mcq_session.pdfs.all()]
+        
+        if not session_pdf_file_names:
+            messages.error(request, "No PDF context found for this session.")
+            return redirect('pdf_mcq:pdf_mcq')
+
         # Generate detailed summary using the new logic function
-        summary_text = generate_detailed_summary(topic, user.id)
+        summary_text = generate_detailed_summary(topic, user.id, pdf_file_names=session_pdf_file_names)
 
         context = {
             'topic': topic,
@@ -290,16 +301,31 @@ def pdf_mcq_view(request):
                 messages.error(request, "❌ Could not create text chunks from the PDF.")
                 return render(request, "pdf_mcq_generate.html", context)
             
-            # Create user-specific vector store
-            create_vector_store(chunks, user_id=user.id)
+            # Create chunks with metadata for vector store
+            chunks_with_metadata = [
+                {
+                    'text': chunk,
+                    'metadata': {
+                        'source': 'pdf_upload',
+                        'chunk_index': i,
+                        'user_id': user.id
+                    }
+                }
+                for i, chunk in enumerate(chunks)
+            ]
             
-            # Save PDF documents to database
+            # Create user-specific vector store
+            create_vector_store(chunks_with_metadata, user_id=user.id)
+            
+            # Save PDF documents to database with Cloudinary storage
             for pdf_file in pdf_files:
-                PDFDocument.objects.create(
+                pdf_doc = PDFDocument.objects.create(
                     user=user,
                     file_name=pdf_file.name,
                     file_size=pdf_file.size
                 )
+                # Save the actual file to Cloudinary
+                pdf_doc.file.save(pdf_file.name, pdf_file, save=True)
             
             # Update the vector store exists flag
             vector_store_exists = True
@@ -445,9 +471,6 @@ def submit_answers(request):
             answers = data.get('answers', {})
             time_taken = data.get('time_taken') # Get time_taken from request
             
-            print(f"Received answers for session {session_id}: {answers}")  # Debug
-            print(f"Received time taken: {time_taken} seconds") # Debug
-            
             if not session_id:
                 return JsonResponse({'status': 'error', 'message': 'Session ID required'}, status=400)
             
@@ -478,13 +501,10 @@ def submit_answers(request):
                             }
                         )
                         saved_count += 1
-                        print(f"Saved answer for question {question_id}: {selected_answer} -> Correct: {is_correct}")
                         
                     except MCQQuestion.DoesNotExist:
-                        print(f"Question {question_id} not found")
                         continue
                 
-                print(f"Saved {saved_count} answers for session {session_id}")
                 return JsonResponse({
                     'status': 'success', 
                     'message': f'{saved_count} answers saved successfully'
@@ -494,10 +514,8 @@ def submit_answers(request):
                 return JsonResponse({'status': 'error', 'message': 'Session not found'}, status=404)
                 
         except json.JSONDecodeError as e:
-            print(f"JSON decode error: {e}")
             return JsonResponse({'status': 'error', 'message': 'Invalid JSON data'}, status=400)
         except Exception as e:
-            print(f"Error saving answers: {e}")
             return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
 
@@ -530,7 +548,6 @@ def submit_feedback(request):
     except json.JSONDecodeError:
         return JsonResponse({'status': 'error', 'message': 'Invalid JSON data'}, status=400)
     except Exception as e:
-        print(f"Error submitting feedback: {e}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
@@ -595,7 +612,6 @@ def get_session_results(request, session_id):
                     'is_correct': is_correct,
                     'topic': topic_to_send
                 })
-                print(f"DEBUG: Question {question.question_number}, Topic: '{topic_to_send}' (Type: {type(topic_to_send)}) | Original DB Topic: '{question.topic}' (Type: {type(question.topic)}) ")
         
         incorrect_topics_list = [{'name': topic, 'count': count} for topic, count in incorrect_topics.items()]
         
@@ -629,7 +645,7 @@ def generate_by_topic(request):
         if not topic:
             return JsonResponse({'status': 'error', 'message': 'No topic provided'}, status=400)
         
-        print(f"Generating {mcq_count} questions about topic: {topic}")
+
         
         # Generate MCQs for specific topic
         llm_response = ask_question_json(
