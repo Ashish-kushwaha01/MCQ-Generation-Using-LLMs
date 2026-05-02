@@ -26,18 +26,21 @@ FAISS_INDEX_PATH = BASE_DIR / "faiss_index"
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-ly)*5_4%5ob%&$=6a8cclvfau(^!e5moxbcw_ncufmpg)bt35j")
+SECRET_KEY = os.environ.get("SECRET_KEY", "a-very-insecure-default-key-DO-NOT-USE-IN-PRODUCTION")
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("DJANGO_DEBUG", "False").lower() == "true"
 
-ALLOWED_HOSTS = os.environ.get("ALLOWED_HOSTS", "").split(",")
-
+# ALLOWED_HOSTS configuration
 if DEBUG:
-    # If in debug mode, always allow localhost and 127.0.0.1
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1"] + ALLOWED_HOSTS
-    # Remove any empty strings that might result from split(",")
-    ALLOWED_HOSTS = [h for h in ALLOWED_HOSTS if h]
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+else:
+    # In production, ALLOWED_HOSTS must be explicitly set via environment variable
+    ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS", "").split(",") if host.strip()]
+    if not ALLOWED_HOSTS:
+        # Fallback for production if ALLOWED_HOSTS is not set, though it should be
+        print("WARNING: ALLOWED_HOSTS is not set in production environment!")
+        ALLOWED_HOSTS = [] # Django will raise an error if empty and DEBUG=False
 
 
 # Application definition
@@ -79,9 +82,12 @@ TEMPLATES = [
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
+                "django.template.context_processors.debug",
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "django.template.context_processors.media",
+                "django.template.context_processors.static",
             ],
         },
     },
@@ -95,12 +101,27 @@ import dj_database_url
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
+# Database Configuration with Connection Pooling
+database_config = dj_database_url.config(
+    default=os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3'),
+    conn_max_age=600,
+    conn_health_checks=True,
+)
+
 DATABASES = {
-    "default": dj_database_url.config(
-        default=os.environ.get('DATABASE_URL', 'sqlite:///db.sqlite3'),
-        conn_max_age=600
-    )
+    "default": database_config
 }
+
+# Connection Pool Settings for PostgreSQL
+if 'postgresql' in database_config.get('ENGINE', ''):
+    DATABASES['default']['OPTIONS'] = {
+        'connect_timeout': 10,
+        'options': '-c statement_timeout=30000',
+        'keepalives': 1,
+        'keepalives_idle': 30,
+        'keepalives_interval': 10,
+        'keepalives_count': 5,
+    }
 
 
 # Password validation
@@ -178,6 +199,45 @@ EMAIL_USE_TLS = True
 
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+
+# CSRF and Security Settings
+if not DEBUG:
+    # Force HTTPS
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    
+    # Security headers
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # CSRF trusted origins for Render
+    # Replace 'your-app-name' with the actual name of your Render web service
+    CSRF_TRUSTED_ORIGINS = [
+        'https://*.onrender.com',
+        'https://your-app-name.onrender.com',
+    ]
+else:
+    # Development settings for CSRF and Security
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://0.0.0.0:8000",
+    ]
+    SECURE_SSL_REDIRECT = False
+    SECURE_HSTS_SECONDS = 0
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = False
+    SECURE_HSTS_PRELOAD = False
+
+# Session Configuration for Remote Database
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
+SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+
+# Database connection retry settings
+DATABASE_CONNECTION_RETRY = True
+DATABASE_CONNECTION_MAX_AGE = 600
 
 # # 1. Session expires when browser closes (optional)
 

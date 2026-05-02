@@ -7,6 +7,10 @@ from .utils import generate_otp
 from django.utils import timezone
 from .models import EmailOTP
 from django.views.decorators.cache import never_cache
+from django.db import transaction, DatabaseError
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -19,29 +23,37 @@ def signup(request):
         if password != confirm_password:
             return render(request,'signup.html',{'error':'Passwords do not match'})
         
-        if User.objects.filter(email = email).exists():
-            return render(request,'signup.html',{'error':'Email already exists'})
-        
-        otp = generate_otp()
-        
-        EmailOTP.objects.create(
-            email = email,
-            otp = otp
-        )
-        
-        send_mail(
-            subject="Your OTP",
-            message=f'Your OTP is {otp}',
-            from_email=settings.EMAIL_HOST_USER,
-            recipient_list=[email,]
-        )
-        
-        request.session['signup_email'] = email
-        request.session['signup_password'] = password
-        
-        # login(request,user)
-
-        return redirect('account:verify_otp')
+        try:
+            with transaction.atomic():
+                if User.objects.filter(email = email).exists():
+                    return render(request,'signup.html',{'error':'Email already exists'})
+                
+                otp = generate_otp()
+                
+                EmailOTP.objects.create(
+                    email = email,
+                    otp = otp
+                )
+                
+                send_mail(
+                    subject="Your OTP",
+                    message=f'Your OTP is {otp}',
+                    from_email=settings.EMAIL_HOST_USER,
+                    recipient_list=[email,]
+                )
+                
+                request.session['signup_email'] = email
+                request.session['signup_password'] = password
+                
+                return redirect('account:verify_otp')
+                
+        except DatabaseError as e:
+            logger.error(f"Database error during signup: {e}")
+            return render(request,'signup.html',{'error':'Database connection error. Please try again.'})
+        except Exception as e:
+            logger.error(f"Unexpected error during signup: {e}")
+            return render(request,'signup.html',{'error':'An unexpected error occurred. Please try again.'})
+    
     return render(request,'signup.html')
 
 
@@ -56,46 +68,61 @@ def verify_otp(request):
     if request.method == 'POST':
         user_otp = request.POST.get('user_otp')
 
-        otp_obj = EmailOTP.objects.filter(
-            email=email,
-            is_verified=False
-        ).last()
+        try:
+            # Use transaction to handle database connection issues
+            with transaction.atomic():
+                otp_obj = EmailOTP.objects.select_for_update().filter(
+                    email=email,
+                    is_verified=False
+                ).last()
 
-        if not otp_obj:
-            return redirect('account:signup')
+                if not otp_obj:
+                    return redirect('account:signup')
 
-        if otp_obj.is_expired():
-            return render(request,'verify_otp.html',{'error':'OTP expired'})
+                if otp_obj.is_expired():
+                    return render(request,'verify_otp.html',{'error':'OTP expired'})
 
-        otp_obj.attempts += 1
-        otp_obj.save()
+                otp_obj.attempts += 1
+                otp_obj.save()
 
-        if otp_obj.attempts > 5:
-            otp_obj.is_verified = True
-            otp_obj.save()
-            return render(request,'verify_otp.html',{'error':'Too many attempts'})
+                if otp_obj.attempts > 5:
+                    otp_obj.is_verified = True
+                    otp_obj.save()
+                    return render(request,'verify_otp.html',{'error':'Too many attempts'})
 
-        if otp_obj.otp != user_otp:
-            return render(request,'verify_otp.html',{'error':'Invalid OTP'})
+                if otp_obj.otp != user_otp:
+                    return render(request,'verify_otp.html',{'error':'Invalid OTP'})
 
-        otp_obj.is_verified = True
-        otp_obj.save()
+                # OTP is correct, mark as verified and create user
+                otp_obj.is_verified = True
+                otp_obj.save()
 
-        if User.objects.filter(email=email).exists():
-            return redirect('account:login')
+                # Check if user already exists
+                if User.objects.filter(email=email).exists():
+                    return redirect('account:login')
 
-        user = User.objects.create_user(
-            username=email,
-            email=email,
-            password=password
-        )
+                # Create new user
+                user = User.objects.create_user(
+                    username=email,
+                    email=email,
+                    password=password
+                )
 
-        login(request, user)
+                # Log the user in
+                login(request, user)
 
-        request.session.pop('signup_email', None)
-        request.session.pop('signup_password', None)
+                # Clear session data
+                request.session.pop('signup_email', None)
+                request.session.pop('signup_password', None)
 
-        return redirect('dashboard')
+                return redirect('dashboard')
+
+        except DatabaseError as e:
+            logger.error(f"Database error during OTP verification: {e}")
+            return render(request,'verify_otp.html',{'error':'Database connection error. Please try again.'})
+        except Exception as e:
+            logger.error(f"Unexpected error during OTP verification: {e}")
+            return render(request,'verify_otp.html',{'error':'An unexpected error occurred. Please try again.'})
 
     return render(request,'verify_otp.html')
 

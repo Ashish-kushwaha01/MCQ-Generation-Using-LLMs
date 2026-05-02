@@ -301,16 +301,31 @@ def pdf_mcq_view(request):
                 messages.error(request, "❌ Could not create text chunks from the PDF.")
                 return render(request, "pdf_mcq_generate.html", context)
             
-            # Create user-specific vector store
-            create_vector_store(chunks, user_id=user.id)
+            # Create chunks with metadata for vector store
+            chunks_with_metadata = [
+                {
+                    'text': chunk,
+                    'metadata': {
+                        'source': 'pdf_upload',
+                        'chunk_index': i,
+                        'user_id': user.id
+                    }
+                }
+                for i, chunk in enumerate(chunks)
+            ]
             
-            # Save PDF documents to database
+            # Create user-specific vector store
+            create_vector_store(chunks_with_metadata, user_id=user.id)
+            
+            # Save PDF documents to database with Cloudinary storage
             for pdf_file in pdf_files:
-                PDFDocument.objects.create(
+                pdf_doc = PDFDocument.objects.create(
                     user=user,
                     file_name=pdf_file.name,
                     file_size=pdf_file.size
                 )
+                # Save the actual file to Cloudinary
+                pdf_doc.file.save(pdf_file.name, pdf_file, save=True)
             
             # Update the vector store exists flag
             vector_store_exists = True

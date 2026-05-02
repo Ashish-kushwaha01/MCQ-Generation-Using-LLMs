@@ -79,6 +79,23 @@ def get_text_chunks(text):
 def create_vector_store(chunks_with_metadata, user_id=None):
     """Create user-specific vector store using Gemini embeddings with metadata, saving locally."""
     try:
+        # Validate input
+        if not chunks_with_metadata:
+            raise ValueError("No chunks provided to create vector store")
+        
+        # Validate data structure
+        if not isinstance(chunks_with_metadata, list):
+            raise TypeError("chunks_with_metadata must be a list")
+        
+        # Validate each item has required structure
+        for i, item in enumerate(chunks_with_metadata):
+            if not isinstance(item, dict):
+                raise TypeError(f"Item at index {i} must be a dictionary, got {type(item)}")
+            if 'text' not in item:
+                raise KeyError(f"Item at index {i} must have 'text' key")
+            if 'metadata' not in item:
+                raise KeyError(f"Item at index {i} must have 'metadata' key")
+        
         embeddings = GoogleGenerativeAIEmbeddings(
             model="gemini-embedding-001",
             google_api_key=GOOGLE_API_KEY
@@ -88,6 +105,7 @@ def create_vector_store(chunks_with_metadata, user_id=None):
         texts = [item['text'] for item in chunks_with_metadata]
         metadatas = [item['metadata'] for item in chunks_with_metadata]
         
+        print(f"Creating vector store with {len(texts)} chunks for user {user_id}")
         db = FAISS.from_texts(texts, embeddings, metadatas=metadatas)
         
         index_name_prefix = get_faiss_index_path(user_id)
@@ -96,6 +114,7 @@ def create_vector_store(chunks_with_metadata, user_id=None):
         os.makedirs(os.path.dirname(index_name_prefix) or '.', exist_ok=True)
         db.save_local(index_name_prefix)
         
+        print(f"Vector store created successfully for user {user_id}")
         return db
         
     except Exception as e:
