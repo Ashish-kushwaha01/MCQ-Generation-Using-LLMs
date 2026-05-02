@@ -33,7 +33,11 @@ DEBUG = os.environ.get("DJANGO_DEBUG", "False").lower() == "true"
 
 # ALLOWED_HOSTS configuration
 if DEBUG:
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1", "0.0.0.0"]
+    ALLOWED_HOSTS = [
+    'mcq-generation-using-llms.onrender.com',
+    'localhost',
+    '127.0.0.1'
+]
 else:
     # In production, ALLOWED_HOSTS must be explicitly set via environment variable
     ALLOWED_HOSTS = [host.strip() for host in os.environ.get("ALLOWED_HOSTS", "").split(",") if host.strip()]
