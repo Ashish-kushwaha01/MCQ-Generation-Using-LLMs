@@ -58,9 +58,9 @@
                             <span class="arrow">&#9662;</span>
                         </a>
                         <div class="dropdown-content">
-                            <a href="#">My Profile</a>
+                            <a href="{% url 'account:profile' %}">My Profile</a>
                             {% comment %} <a href=#>My Purchases</a> {% endcomment %}
-                            <a href="{% url 'account:logout' %}">Logout</a>
+                            <a href="javascript:void(0)" onclick="showLogoutModal()">Logout</a>
                         </div>
                         </div>
 
@@ -81,6 +81,22 @@
             </nav>
         </div>
     </header>
+    
+    <!-- Logout Confirmation Modal -->
+    <div id="logoutModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-icon">
+                <i class="fas fa-sign-out-alt"></i>
+            </div>
+            <h2>Confirm Logout</h2>
+            <p>Are you sure you want to log out of PrepEnhancer?</p>
+            <div class="modal-actions">
+                <button class="btn btn-outline" onclick="closeLogoutModal()">Cancel</button>
+                <a href="{% url 'account:logout' %}" class="btn btn-danger">Yes, Logout</a>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Content -->
     <div class="messages-container">
         {% if messages %}
@@ -191,6 +207,25 @@
                 }));
             }
         });
+
+        // Logout Modal Logic (Global)
+        function showLogoutModal() {
+            document.getElementById('logoutModal').classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeLogoutModal() {
+            document.getElementById('logoutModal').classList.remove('active');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Close modal on outside click
+        window.onclick = function(event) {
+            const modal = document.getElementById('logoutModal');
+            if (event.target == modal) {
+                closeLogoutModal();
+            }
+        }
     </script>
 </body>
 </html>

@@ -1,0 +1,266 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}PrepEnhancer - My Profile{% endblock %}
+
+{% block css %}
+<link rel="stylesheet" href="{% static 'css/profile_new.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="profile-page-wrapper">
+    <!-- Sidebar (20%) -->
+    <aside class="profile-sidebar">
+        <div class="user-brief">
+            <div class="avatar">
+                <i class="fas fa-user-circle"></i>
+            </div>
+            <h3>{{ request.user.username }}</h3>
+        </div>
+        
+        <nav class="profile-nav">
+            <button class="nav-tab active" data-target="overview">
+                <i class="fas fa-th-large"></i> Overview
+            </button>
+            <button class="nav-tab" data-target="mcq-history">
+                <i class="fas fa-file-pdf"></i> MCQ History
+            </button>
+            <button class="nav-tab" data-target="test-attempts">
+                <i class="fas fa-tasks"></i> Attempted Tests
+            </button>
+            <button class="nav-tab" data-target="audio-results">
+                <i class="fas fa-microphone"></i> Audio Results
+            </button>
+            <button class="nav-tab" data-target="settings">
+                <i class="fas fa-cog"></i> Settings
+            </button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="btn-logout-trigger" onclick="showLogoutModal()">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </div>
+    </aside>
+
+    <!-- Main Content (80%) -->
+    <main class="profile-content">
+        <!-- Overview Section -->
+        <section id="overview" class="content-section active">
+            <h2 class="section-title">Dashboard Overview</h2>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <i class="fas fa-file-pdf"></i>
+                    <div class="stat-info">
+                        <h4>{{ stats.pdf_count }}</h4>
+                        <p>PDFs Uploaded</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-question-circle"></i>
+                    <div class="stat-info">
+                        <h4>{{ stats.mcq_count }}</h4>
+                        <p>MCQ Sessions</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-clipboard-check"></i>
+                    <div class="stat-info">
+                        <h4>{{ stats.test_count }}</h4>
+                        <p>Tests Attempted</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-music"></i>
+                    <div class="stat-info">
+                        <h4>{{ stats.audio_count }}</h4>
+                        <p>Audio Generated</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="recent-activity">
+                <h3>Recent Activity</h3>
+                <div class="activity-timeline">
+                    {% if pdf_docs %}
+                        <div class="timeline-item">
+                            <span class="time">{{ pdf_docs.0.uploaded_at|date:"M d, Y" }}</span>
+                            <p>Uploaded <strong>{{ pdf_docs.0.file_name }}</strong></p>
+                        </div>
+                    {% endif %}
+                    {% if test_attempts %}
+                        <div class="timeline-item">
+                            <span class="time">{{ test_attempts.0.started_at|date:"M d, Y" }}</span>
+                            <p>Attempted Test: <strong>{{ test_attempts.0.test.title }}</strong></p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+
+        <!-- MCQ History Section -->
+        <section id="mcq-history" class="content-section">
+            <h2 class="section-title">MCQ Generation History</h2>
+            <div class="table-container">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Session ID</th>
+                            <th>Stats</th>
+                            <th>Total</th>
+                            <th>Date</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for session in mcq_sessions %}
+                        <tr>
+                            <td><small>{{ session.session_id }}</small></td>
+                            <td>
+                                <span class="stat-badge stat-correct" title="Correct">C: {{ session.correct_count }}</span>
+                                <span class="stat-badge stat-incorrect" title="Incorrect">I: {{ session.incorrect_count }}</span>
+                                <span class="stat-badge stat-skipped" title="Skipped">S: {{ session.skipped_count }}</span>
+                            </td>
+                            <td><strong>{{ session.mcq_count }}</strong></td>
+                            <td>{{ session.created_at|date:"M d, Y" }}</td>
+                            <td>{{ session.time_taken|default:"--" }}s</td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="5" class="text-center">No MCQ sessions found.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Test Attempts Section -->
+        <section id="test-attempts" class="content-section">
+            <h2 class="section-title">Attempted Tests</h2>
+            <div class="attempts-grid">
+                {% for attempt in test_attempts %}
+                <div class="attempt-card">
+                    <div class="attempt-header">
+                        <h4>{{ attempt.test.title }}</h4>
+                        <span class="badge {% if attempt.completed %}badge-success{% else %}badge-warning{% endif %}">
+                            {% if attempt.completed %}Completed{% else %}In Progress{% endif %}
+                        </span>
+                    </div>
+                    <div class="attempt-body">
+                        <p><i class="fas fa-calendar-alt"></i> {{ attempt.started_at|date:"M d, Y" }}</p>
+                        <div class="score-row">
+                            <span>Score: <strong>{{ attempt.correct }}/{{ attempt.total }}</strong></span>
+                            <div class="progress-mini">
+                                <div class="progress-bar" style="width: {% widthratio attempt.correct attempt.total 100 %}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% empty %}
+                <p class="empty-msg">No test attempts recorded.</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Audio Results Section -->
+        <section id="audio-results" class="content-section">
+            <h2 class="section-title">Generated Audio Content</h2>
+            <div class="audio-list">
+                {% for audio in audio_results %}
+                <div class="audio-item">
+                    <div class="audio-info">
+                        <h4>{{ audio.topic }}</h4>
+                        <p>{{ audio.style }} | {{ audio.voice }} | {{ audio.created_at|date:"M d, Y" }}</p>
+                    </div>
+                    <audio controls>
+                        <source src="{{ audio.audio_file.url }}" type="audio/wav">
+                    </audio>
+                </div>
+                {% empty %}
+                <p class="empty-msg">No audio generated yet.</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section id="settings" class="content-section">
+            <h2 class="section-title">Account Settings</h2>
+            
+            <div class="settings-card">
+                <h3>Update Profile</h3>
+                <form method="POST" action="{% url 'account:update_profile' %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" name="username" value="{{ request.user.username }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input type="email" name="email" value="{{ request.user.email }}" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </form>
+            </div>
+
+            <div class="settings-card">
+                <h3>Change Password</h3>
+                <form method="POST" action="{% url 'account:change_password' %}">
+                    {% csrf_token %}
+                    <div class="form-group">
+                        <label>Current Password</label>
+                        <input type="password" name="old_password" required>
+                    </div>
+                    <div class="form-group">
+                        <label>New Password</label>
+                        <input type="password" name="new_password" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Confirm New Password</label>
+                        <input type="password" name="confirm_password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Update Password</button>
+                </form>
+            </div>
+        </section>
+    </main>
+</div>
+
+<!-- Logout Confirmation Modal -->
+<div id="logoutModal" class="modal-overlay">
+    <div class="modal-content">
+        <div class="modal-icon">
+            <i class="fas fa-sign-out-alt"></i>
+        </div>
+        <h2>Confirm Logout</h2>
+        <p>Are you sure you want to log out of PrepEnhancer?</p>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="closeLogoutModal()">Cancel</button>
+            <a href="{% url 'account:logout' %}" class="btn btn-danger">Yes, Logout</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Tab Switching Logic
+    const tabs = document.querySelectorAll('.nav-tab');
+    const sections = document.querySelectorAll('.content-section');
+
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const target = tab.dataset.target;
+            
+            // Update tabs
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+
+            // Update sections
+            sections.forEach(s => s.classList.remove('active'));
+            document.getElementById(target).classList.add('active');
+            
+            // Scroll content to top
+            document.querySelector('.profile-content').scrollTop = 0;
+        });
+    });
+
+    // Logout Modal Logic is now handled globally in base.html
+</script>
+{% endblock %}
