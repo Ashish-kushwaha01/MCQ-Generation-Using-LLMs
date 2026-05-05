@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}PrepEnhancer - AI Audio Content Generator{% endblock %}
+
+{% block css %}
+<link rel="stylesheet" href="{% static 'css/layout.css' %}">
+<link rel="stylesheet" href="{% static 'css/audio_generator.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="audio-generator-header">
+        <h1>🎙️ AI Audio Content Generator</h1>
+        <p>Generate high-quality podcasts, storytelling, or dramatic audio scripts and speech in seconds.</p>
+    </div>
+
+    <div class="generator-container">
+        <!-- Input Form Card -->
+        <div class="card form-card">
+            <form method="POST" action="{% url 'ai_audio:audio_generator' %}" id="audioForm">
+                {% csrf_token %}
+                
+                <div class="form-section">
+                    <label for="topic"><i class="fas fa-thumbtack"></i> Enter Topic</label>
+                    <input type="text" name="topic" id="topic" placeholder="e.g., The Future of AI, History of Rome, OOPS Concepts" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-section">
+                        <label for="style"><i class="fas fa-theater-masks"></i> Select Style</label>
+                        <select name="style" id="style" required>
+                            <option value="Storytelling">Storytelling</option>
+                            <option value="Podcast">Podcast</option>
+                            <option value="Dramatic">Dramatic</option>
+                            <option value="Educational">Educational</option>
+                            <option value="News">News Report</option>
+                        </select>
+                    </div>
+
+                    <div class="form-section">
+                        <label for="duration"><i class="fas fa-clock"></i> Duration (minutes)</label>
+                        <div class="range-container">
+                            <input type="range" name="duration" id="duration" min="1" max="10" value="3" oninput="this.nextElementSibling.value = this.value">
+                            <output>3</output>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-section">
+                        <label for="voice"><i class="fas fa-microphone-alt"></i> Select Voice</label>
+                        <select name="voice" id="voice" required>
+                            <option value="shubh">Shubh (Male - Default)</option>
+                            <option value="ritu">Ritu (Female)</option>
+                            <option value="aditya">Aditya (Male)</option>
+                            <option value="neha">Neha (Female)</option>
+                            <option value="rahul">Rahul (Male)</option>
+                            <option value="priya">Priya (Female)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-section">
+                        <label for="language"><i class="fas fa-language"></i> Select Language</label>
+                        <select name="language" id="language" required>
+                            <option value="en-IN">English (Indian Accent)</option>
+                            <option value="hi-IN">Hindi</option>
+                            <option value="bn-IN">Bengali</option>
+                            <option value="ta-IN">Tamil</option>
+                            <option value="te-IN">Telugu</option>
+                            <option value="kn-IN">Kannada</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary generate-btn" id="generateBtn">
+                    <i class="fas fa-rocket"></i> Generate Audio
+                </button>
+            </form>
+        </div>
+
+        <!-- Progress/Loading State (Hidden by default) -->
+        <div id="loadingState" class="loading-overlay" style="display: none;">
+            <div class="loader"></div>
+            <p>Our AI is crafting your content and generating the audio... This may take a minute.</p>
+        </div>
+
+        <!-- Recent Generations List -->
+        <div class="card history-card">
+            <h2><i class="fas fa-history"></i> Recent Generations</h2>
+            <div class="generations-list">
+                {% if generations %}
+                    {% for gen in generations %}
+                        <div class="generation-item">
+                            <div class="gen-info">
+                                <h3>{{ gen.topic }}</h3>
+                                <p><span>Style:</span> {{ gen.style }} | <span>Voice:</span> {{ gen.voice }} | <span>Date:</span> {{ gen.created_at|date:"M d, Y H:i" }}</p>
+                            </div>
+                            <div class="gen-audio">
+                                <audio controls>
+                                    <source src="{{ gen.audio_file.url }}" type="audio/wav">
+                                    Your browser does not support the audio element.
+                                </audio>
+                                <a href="{{ gen.audio_file.url }}" download class="btn btn-outline btn-sm"><i class="fas fa-download"></i></a>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty-msg">No audio generated yet. Start by filling the form above!</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block js %}
+<script>
+    document.getElementById('audioForm').addEventListener('submit', function() {
+        document.getElementById('loadingState').style.display = 'flex';
+        document.getElementById('generateBtn').disabled = true;
+        document.getElementById('generateBtn').innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    });
+</script>
+{% endblock %}

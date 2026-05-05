@@ -47,7 +47,7 @@ INSTALLED_APPS = [
     'test_all',
     'pdf_mcq',
     'summarize',
-    
+    'ai_audio',
 ]
 
 MIDDLEWARE = [

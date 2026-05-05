@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block title %}FAQ - PrepEnhancer{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 100px 20px;">
+    <h1 class="section-title text-center">Frequently Asked <span class="highlight">Questions</span></h1>
+    
+    <div style="max-width: 800px; margin: 40px auto;">
+        <div style="margin-bottom: 30px;">
+            <h4 style="color: var(--primary-color);">1. How does the MCQ Generator work?</h4>
+            <p>Simply upload a PDF document. Our AI analyzes the text and generates relevant multiple-choice questions with detailed explanations based on the content.</p>
+        </div>
+
+        <div style="margin-bottom: 30px;">
+            <h4 style="color: var(--primary-color);">2. Is there a limit to the video length for summarization?</h4>
+            <p>Our tool works best with videos that have English or Hindi transcripts. While there's no strict limit, extremely long videos might take longer to process.</p>
+        </div>
+
+        <div style="margin-bottom: 30px;">
+            <h4 style="color: var(--primary-color);">3. Can I download the generated audio?</h4>
+            <p>Yes! Every audio file generated using our AI Audio tool can be played directly on the site or downloaded for offline listening.</p>
+        </div>
+
+        <div style="margin-bottom: 30px;">
+            <h4 style="color: var(--primary-color);">4. Is my data secure?</h4>
+            <p>We prioritize your privacy. Uploaded PDFs and generated content are stored securely and associated only with your user account.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

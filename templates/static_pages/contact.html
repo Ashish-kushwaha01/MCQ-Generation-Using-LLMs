@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Contact Us - PrepEnhancer{% endblock %}
+
+{% block content %}
+<div class="container" style="padding: 100px 20px;">
+    <h1 class="section-title text-center">Contact <span class="highlight">Us</span></h1>
+    
+    <div style="max-width: 800px; margin: 40px auto; text-align: center;">
+        <p>Have questions, suggestions, or need support? We'd love to hear from you!</p>
+        
+        <div style="margin-top: 40px; display: flex; justify-content: center; gap: 50px; flex-wrap: wrap;">
+            <div>
+                <i class="fas fa-envelope" style="font-size: 2rem; color: var(--primary-color); margin-bottom: 10px;"></i>
+                <h4>Email</h4>
+                <p>support@prepenhancer.com</p>
+            </div>
+            
+            <div>
+                <i class="fas fa-map-marker-alt" style="font-size: 2rem; color: var(--primary-color); margin-bottom: 10px;"></i>
+                <h4>Location</h4>
+                <p>New Delhi, India</p>
+            </div>
+
+            <div>
+                <i class="fas fa-clock" style="font-size: 2rem; color: var(--primary-color); margin-bottom: 10px;"></i>
+                <h4>Support Hours</h4>
+                <p>Mon - Fri: 9 AM - 6 PM</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

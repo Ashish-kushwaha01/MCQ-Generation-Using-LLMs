@@ -25,10 +25,16 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('',views.dashboard,name='dashboard'),
+    path('about/', views.about, name='about'),
+    path('faq/', views.faq, name='faq'),
+    path('contact/', views.contact, name='contact'),
+    path('terms/', views.terms, name='terms'),
+    path('privacy/', views.privacy, name='privacy'),
     path('account/', include('account.urls')),  
     path('test_all/',include('test_all.urls')),
     path('summarize/',include('summarize.urls')),
     path('pdf_mcq/',include('pdf_mcq.urls')),
+    path('audio-generator/', include('ai_audio.urls')),
 ]
 
 if settings.DEBUG:
