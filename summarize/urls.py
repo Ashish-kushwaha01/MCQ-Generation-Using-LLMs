@@ -3,9 +3,5 @@ from . import views
 
 app_name = 'summarize'
 urlpatterns = [
-
-    path(
-        "summarize/",views.summarize_video,name="summarize"
-    ),
-
+    path("summarize/", views.summarize_content, name="summarize"),
 ]

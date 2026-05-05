@@ -298,7 +298,8 @@ def pdf_mcq_view(request):
                 PDFDocument.objects.create(
                     user=user,
                     file_name=pdf_file.name,
-                    file_size=pdf_file.size
+                    file_size=pdf_file.size,
+                    uploaded_at=timezone.now()
                 )
             
             # Update the vector store exists flag
@@ -314,7 +315,11 @@ def pdf_mcq_view(request):
         
         # Generate MCQs (only number of questions)
         elif request.POST.get("mcq_count"):
-            mcq_count = int(request.POST.get("mcq_count", "10"))
+            mcq_count_str = request.POST.get("mcq_count", "10")
+            try:
+                mcq_count = int(mcq_count_str)
+            except ValueError:
+                mcq_count = 10
             
             # Validate count
             if mcq_count < 1 or mcq_count > 100:
@@ -331,7 +336,8 @@ def pdf_mcq_view(request):
                 mcq_session = MCQSession.objects.create(
                     user=user,
                     session_id=session_id,
-                    mcq_count=llm_response['mcq_count']
+                    mcq_count=llm_response['mcq_count'],
+                    created_at=timezone.now()
                 )
                 
                 # Save questions to database
@@ -350,7 +356,8 @@ def pdf_mcq_view(request):
                         option_d=options.get('D', ''),
                         correct_answer=mcq.get('correct_letter', 'A'),
                         explanation=mcq.get('explanation', ''),
-                        topic=mcq.get('topic', '') # Save the topic
+                        topic=mcq.get('topic', ''), # Save the topic
+                        created_at=timezone.now()
                     )
                     saved_questions.append(question)
                 

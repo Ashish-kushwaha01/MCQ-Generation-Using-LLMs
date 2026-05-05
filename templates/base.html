@@ -31,7 +31,7 @@
 
     <li><a href="{% url 'summarize:summarize' %}"
         class="nav-link {% if request.resolver_match.url_name == 'summarize' %}active{% endif %}">
-        Summarizer
+        Universal Summarizer
     </a></li>
     
     <li><a href="{% url 'pdf_mcq:pdf_mcq' %}"
@@ -120,7 +120,7 @@
                     <a href="#" class="logo">
                         <span class="logo-text"><i class="fas fa-graduation-cap"></i> <span class="logo-highlight">PrepEnhancer</span></span>
                     </a>
-                    <p class="footer-description">PrepEnhancer is a modern educational platform offering high-quality courses across various disciplines.</p>
+                    <p class="footer-description">PrepEnhancer is an AI-powered preparation platform that helps you master any topic using advanced LLMs to generate MCQs, summaries, and audio content.</p>
                     <div class="social-links">
                         <a href="#"><i class="fab fa-facebook-f"></i></a>
                         <a href="#"><i class="fab fa-twitter"></i></a>
@@ -134,7 +134,7 @@
                     <h4>Tools</h4>
                     <ul class="footer-links">
                         <li><a href="{% url 'test_all:test_page' %}">Available Tests</a></li>
-                        <li><a href="{% url 'summarize:summarize' %}">Video Summarizer</a></li>
+                        <li><a href="{% url 'summarize:summarize' %}">Universal Summarizer</a></li>
                         <li><a href="{% url 'pdf_mcq:pdf_mcq' %}">MCQ Generator</a></li>
                         <li><a href="{% url 'ai_audio:audio_generator' %}">Audio Generator</a></li>
                     </ul>
