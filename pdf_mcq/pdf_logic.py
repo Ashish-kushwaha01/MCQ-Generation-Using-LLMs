@@ -127,7 +127,7 @@ def load_vector_store(user_id=None):
 def get_llm():
     """Get the Gemini LLM - using Gemini 2.5 Flash"""
     return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",  # You have this model available
+        model="gemini-2.5-flash",  # Confirmed available in 2026 environment
         temperature=0.3,
         google_api_key=GOOGLE_API_KEY
     )
