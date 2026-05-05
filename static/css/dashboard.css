@@ -1,32 +1,10 @@
-/* CSS Reset & Base Styles */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
-
 html {
     scroll-behavior: smooth;
 }
 
-body {
-    font-family: 'Poppins', sans-serif;
-    color: var(--dark-color);
-    line-height: 1.6;
-    background-color: #fff;
-    overflow-x: hidden;
-}
-
-.container {
-    width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 20px;
-}
-
 /* Hero Section */
 .hero {
-    padding-top: 140px;
+    padding: 60px 0;
     background: linear-gradient(135deg, #f5f7ff 0%, #f0f2ff 100%);
     position: relative;
     overflow: hidden;

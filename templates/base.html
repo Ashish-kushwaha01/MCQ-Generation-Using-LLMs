@@ -5,8 +5,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}title{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'css/layout.css' %}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     {% block css %}
-    <link rel="stylesheet" href="{% static 'css/style.css' %}">
     {% endblock %}
     </head>
 <body>
@@ -15,8 +16,7 @@
         <div class="container">
             <nav class="navbar">
                 <a href="{% url 'dashboard' %}" class="logo">
-                    <i class="fas fa-graduation-cap"></i>
-                    <span class="logo-text">Edu<span class="logo-highlight">Learn</span></span>
+                    <span class="logo-text"><i class="fas fa-graduation-cap"></i> <span class="logo-highlight">PrepEnhancer</span></span>
                 </a>
                 
                 <ul class="nav-menu">
@@ -88,10 +88,9 @@
             <div class="footer-content">
                 <div class="footer-col">
                     <a href="#" class="logo">
-                        <i class="fas fa-graduation-cap"></i>
-                        <span class="logo-text">Edu<span class="logo-highlight">Learn</span></span>
+                        <span class="logo-text"><i class="fas fa-graduation-cap"></i> <span class="logo-highlight">PrepEnhancer</span></span>
                     </a>
-                    <p class="footer-description">EduLearn is a modern educational platform offering high-quality courses across various disciplines.</p>
+                    <p class="footer-description">PrepEnhancer is a modern educational platform offering high-quality courses across various disciplines.</p>
                     <div class="social-links">
                         <a href="#"><i class="fab fa-facebook-f"></i></a>
                         <a href="#"><i class="fab fa-twitter"></i></a>
@@ -136,7 +135,7 @@
             </div>
             
             <div class="footer-bottom">
-                <p>&copy; 2026 EduLearn. All rights reserved.</p>
+                <p>&copy; 2026 PrepEnhancer. All rights reserved.</p>
                 <div class="footer-bottom-links">
                     <a href="#">Privacy Policy</a>
                     <a href="#">Terms of Service</a>

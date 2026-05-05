@@ -24,6 +24,14 @@ body {
     line-height: 1.6;
     background-color: #fff;
     overflow-x: hidden;
+    padding-top: 80px; /* Space for fixed header */
+}
+
+.container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
 }
 
 section {
@@ -86,10 +94,15 @@ img {
     color: var(--dark-color);
 }
 
+.logo-text {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
 .logo i {
     color: var(--primary-color);
-    margin-right: 10px;
-    font-size: 2rem;
+    font-size: 1.8rem;
 }
 
 .logo-highlight {
@@ -303,10 +316,21 @@ img {
 }
 
 .footer-content {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
     gap: 40px;
-    /* margin-bottom: 60px; */
+    margin-bottom: 60px;
+}
+
+.footer-col {
+    flex: 1;
+    min-width: 200px;
+}
+
+.footer-col:first-child {
+    flex: 2;
+    min-width: 300px;
 }
 
 .footer-description {

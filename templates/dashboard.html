@@ -1,64 +1,63 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}EduLearn - Dashboard{% endblock %}
+{% block title %}PrepEnhancer - Dashboard{% endblock %}
 {% block css %}
-<link rel = 'stylesheet' href="{% static 'css/layout.css' %}">
     <link rel='stylesheet' href="{% static 'css/dashboard.css' %}">
 {% endblock %}
 
 {% block content %}
 
-    Hero Section -->
+    <!-- Hero Section -->
     <section class="hero">
         <div class="container">
             <div class="hero-content">
                 <div class="hero-text animate__animated animate__fadeInUp">
-                    <h1 class="hero-title">Learn Without <span class="highlight">Limits</span></h1>
+                    <h1 class="hero-title">Elevate Your <span class="highlight">Preparation</span></h1>
                     <p class="hero-description">
-                        Access thousands of courses in technology, business, creative arts, and more. 
-                        Learn from industry experts and join a global community of learners.
+                        Transform your study material with AI. Generate custom MCQs from PDFs, summarize YouTube videos instantly, and clear doubts with our intelligent RAG-powered chatbot.
                     </p>
                     <div class="hero-actions">
-                        {% comment %} <button class="btn btn-primary btn-large">Start Learning Free</button> {% endcomment %}
-                        {% if not username %}   
-                        <a href="{% url 'account:login' %}" class="btn btn-primary btn-large">Get Started</a>
+                        {% if not request.user.is_authenticated %}   
+                            <a href="{% url 'account:login' %}" class="btn btn-primary btn-large">Get Started</a>
+                        {% else %}
+                            <a href="{% url 'pdf_mcq:pdf_mcq' %}" class="btn btn-primary btn-large">Generate MCQs</a>
                         {% endif %}
 
-                        <button class="btn btn-outline btn-large">
-                            <i class="fas fa-play-circle"></i> Watch Demo
-                        </button>
+                        <a href="{% url 'summarize:summarize' %}" class="btn btn-outline btn-large">
+                            <i class="fab fa-youtube"></i> Summarize Video
+                        </a>
                     </div>
                     <div class="hero-stats">
                         <div class="stat">
-                            <h3>50K+</h3>
-                            <p>Active Students</p>
+                            <h3>10K+</h3>
+                            <p>MCQs Generated</p>
                         </div>
                         <div class="stat">
-                            <h3>2,500+</h3>
-                            <p>Courses</p>
+                            <h3>5K+</h3>
+                            <p>Videos Summarized</p>
                         </div>
                         <div class="stat">
-                            <h3>300+</h3>
-                            <p>Expert Instructors</p>
+                            <h3>24/7</h3>
+                            <p>AI Support</p>
                         </div>
                     </div>
                 </div>
                 <div class="hero-image animate__animated animate__fadeIn">
                     <div class="floating-card card-1">
-                        <i class="fas fa-laptop-code"></i>
-                        <h4>Coding Bootcamp</h4>
-                        <p>Full-Stack Development</p>
+                        <i class="fas fa-file-pdf"></i>
+                        <h4>PDF to MCQ</h4>
+                        <p>Instant Question Sets</p>
                     </div>
                     <div class="floating-card card-2">
-                        <i class="fas fa-chart-line"></i>
-                        <h4>Data Science</h4>
-                        <p>Machine Learning & AI</p>
+                        <i class="fab fa-youtube"></i>
+                        <h4>Video Summary</h4>
+                        <p>Key Insights in Seconds</p>
                     </div>
                     <div class="floating-card card-3">
-                        <i class="fas fa-palette"></i>
-                        <h4>UI/UX Design</h4>
-                        <p>Design Principles</p>
+                        <i class="fas fa-robot"></i>
+                        <h4>AI Tutor</h4>
+                        <p>RAG-Powered Chat</p>
                     </div>
                     <div class="hero-visual">
                         <div class="visual-circle"></div>
@@ -75,45 +74,45 @@
     <section class="features">
         <div class="container">
             <div class="section-header">
-                <h2 class="section-title">Why Choose <span class="highlight">EduLearn</span></h2>
-                <p class="section-description">We provide the best learning experience with cutting-edge technology and proven methodologies.</p>
+                <h2 class="section-title">AI-Powered <span class="highlight">Learning Tools</span></h2>
+                <p class="section-description">We leverage cutting-edge Gemini 2.5 Flash technology to help you master any subject faster and more efficiently.</p>
             </div>
             
             <div class="features-grid">
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i class="fas fa-rocket"></i>
+                        <i class="fas fa-magic"></i>
                     </div>
-                    <h3>Learn at Your Pace</h3>
-                    <p>Access courses 24/7 with lifetime availability. Learn quickly or take your time - it's up to you.</p>
-                    <a href="#" class="feature-link">Learn More <i class="fas fa-arrow-right"></i></a>
+                    <h3>Smart MCQ Generator</h3>
+                    <p>Upload your PDFs and let our AI generate specific, high-quality MCQs tailored to your study material.</p>
+                    <a href="{% url 'pdf_mcq:pdf_mcq' %}" class="feature-link">Try Now <i class="fas fa-arrow-right"></i></a>
                 </div>
                 
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i class="fas fa-certificate"></i>
+                        <i class="fab fa-youtube"></i>
                     </div>
-                    <h3>Certification</h3>
-                    <p>Earn recognized certificates to showcase your skills and advance your career.</p>
-                    <a href="#" class="feature-link">View Certificates <i class="fas fa-arrow-right"></i></a>
+                    <h3>YouTube Video Summarizer</h3>
+                    <p>Don't have time for long videos? Get concise summaries and key takeaways instantly from any YouTube link.</p>
+                    <a href="{% url 'summarize:summarize' %}" class="feature-link">Summarize <i class="fas fa-arrow-right"></i></a>
                 </div>
                 
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i class="fas fa-users"></i>
+                        <i class="fas fa-comments"></i>
                     </div>
-                    <h3>Community Learning</h3>
-                    <p>Join study groups, participate in discussions, and collaborate with peers worldwide.</p>
-                    <a href="#" class="feature-link">Join Community <i class="fas fa-arrow-right"></i></a>
+                    <h3>Interactive AI Chatbot</h3>
+                    <p>Chat with your documents! Ask specific questions and get grounded answers based on your uploaded content.</p>
+                    <a href="{% url 'pdf_mcq:pdf_mcq' %}" class="feature-link">Ask AI <i class="fas fa-arrow-right"></i></a>
                 </div>
                 
                 <div class="feature-card">
                     <div class="feature-icon">
-                        <i class="fas fa-chalkboard-teacher"></i>
+                        <i class="fas fa-tasks"></i>
                     </div>
-                    <h3>Expert Instructors</h3>
-                    <p>Learn from industry leaders and experienced educators passionate about teaching.</p>
-                    <a href="#" class="feature-link">Meet Instructors <i class="fas fa-arrow-right"></i></a>
+                    <h3>Mock Tests & Analysis</h3>
+                    <p>Take structured tests, track your performance, and identify your weak topics with detailed analytics.</p>
+                    <a href="{% url 'test_all:test_page' %}" class="feature-link">Take Test <i class="fas fa-arrow-right"></i></a>
                 </div>
             </div>
         </div>

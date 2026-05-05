@@ -101,7 +101,7 @@ def download_mcqs_pdf(request):
         checkbox_char = '&#9744;' # Unicode for an empty checkbox
         
         # Title
-        story.append(Paragraph("EduLearn", h1_style))
+        story.append(Paragraph("PrepEnhancer", h1_style))
         story.append(Paragraph(f"MCQs for Session: {mcq_session.session_id}", h2_style))
         story.append(Spacer(1, 0.2 * inch))
 
